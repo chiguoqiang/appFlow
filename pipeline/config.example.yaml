@@ -1,0 +1,99 @@
+# ============================================================================
+# AI 应用生产线 · 后端配置
+#
+# 这个文件决定「每个岗位用哪个模型」。
+# 复制为 config.yaml 生效（当前是示例，不会被读取）：
+#   cp pipeline/config.example.yaml pipeline/config.yaml
+#
+# ⚠️ 密钥绝不写在这里。这里只写「环境变量名」，真值放 shell 环境或
+#    ~/.config/appflow/config.yaml（该路径也会被加载，用于个人偏好覆盖）。
+# ============================================================================
+
+# 默认后端：未单独配置的岗位都用它。可选 mock | deepseek | claude | 自定义名
+default_backend: mock
+
+# ---------------------------------------------------------------------------
+# 按岗位分流（混合模式）
+#
+# 不写 agents 段 = 全部用 default_backend。
+# 想启用混合模式，取消下面的注释：
+# ---------------------------------------------------------------------------
+# agents:
+#   # 文本岗位：只读文档 → 出文档，用便宜的 API 就够
+#   planner:   { backend: deepseek }
+#   designer:  { backend: deepseek }
+#   tester:    { backend: deepseek }
+#   acceptor:  { backend: deepseek }
+#   # 开发岗位：必须写代码、跑 flutter test，需要带工具的后端
+#   developer: { backend: claude }
+
+# ---------------------------------------------------------------------------
+# 后端定义
+# ---------------------------------------------------------------------------
+backends:
+  # 骨架验证用：按 manifest 生成结构合法的占位内容，不调用任何模型
+  mock:
+    type: mock
+
+  # DeepSeek（OpenAI 兼容协议）
+  # 配置步骤：
+  #   1. 到 https://platform.deepseek.com 创建 API Key
+  #   2. export DEEPSEEK_API_KEY=sk-xxxx        （写进 ~/.zshrc 长期生效）
+  #   3. 把 default_backend 改成 deepseek，或按岗位配置 agents
+  deepseek:
+    type: openai_compatible
+    base_url: https://api.deepseek.com
+    model: deepseek-chat
+    api_key_env: DEEPSEEK_API_KEY
+    temperature: 0.2
+    max_tokens: 8192
+    timeout_sec: 300
+
+  # Claude CLI 无头模式（自带工具能力，适合开发岗位）
+  # 配置步骤：
+  #   1. 安装 Claude Code
+  #   2. 终端执行 claude 后按提示 /login（需要订阅）
+  claude:
+    type: claude_cli
+    binary: claude
+    timeout_sec: 600
+
+  # 其他 OpenAI 兼容供应商示例（按需删改）
+  # kimi:
+  #   type: openai_compatible
+  #   base_url: https://api.moonshot.cn/v1
+  #   model: moonshot-v1-32k
+  #   api_key_env: MOONSHOT_API_KEY
+  #   temperature: 0.2
+  #   max_tokens: 8192
+  #   timeout_sec: 300
+  #
+  # qwen:
+  #   type: openai_compatible
+  #   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  #   model: qwen-plus
+  #   api_key_env: DASHSCOPE_API_KEY
+  #   temperature: 0.2
+  #   max_tokens: 8192
+  #   timeout_sec: 300
+
+# ---------------------------------------------------------------------------
+# 上下文预算（重要）
+#
+# must_read 里的材料可能很大（PRD 十几 KB），5 个阶段累积会超窗口。
+# 组装 prompt 时会按结构截断：保留全部标题，等比压缩各节正文。
+# ---------------------------------------------------------------------------
+context:
+  max_total_chars: 60000      # 所有材料合计上限（中文 1 字 ≈ 1 token）
+  max_per_file_chars: 20000   # 单份材料上限
+  keep_structure: true        # 保留 markdown 骨架（强烈建议开启）
+
+# ---------------------------------------------------------------------------
+# 自修复
+#
+# 模型第一次产出常差一点（少章节/表头列名不对）。
+# 开启后会把 manifest 校验失败项反馈给模型做最小改动修复，
+# 比让引擎整体重跑（重新生成全部内容）便宜得多。
+# ---------------------------------------------------------------------------
+repair:
+  max_attempts: 1

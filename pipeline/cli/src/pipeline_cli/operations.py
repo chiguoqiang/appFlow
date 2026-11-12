@@ -505,6 +505,33 @@ def apply_gate(
     }
 
 
+def build_router(
+    paths: Paths,
+    *,
+    override_backend: str | None = None,
+) -> Any:
+    """按配置构造按岗位路由的 invoker。
+
+    优先级：命令行 override > agents.<name>.backend > default_backend
+    """
+    from .config import load_config, resolve_backend
+    from .invokers import RoutingInvoker, build_invoker
+
+    cfg = load_config(paths)
+    agents = ("planner", "designer", "developer", "tester", "acceptor")
+
+    mapping: dict[str, Any] = {}
+    default_invoker: Any = None
+    for agent in agents:
+        spec = resolve_backend(cfg, agent=agent, override=override_backend)
+        invoker = build_invoker(spec, cfg=cfg)
+        mapping[agent] = invoker
+        if default_invoker is None:
+            default_invoker = invoker
+
+    return RoutingInvoker(mapping, default_invoker or MockInvoker())
+
+
 def run_stage(
     paths: Paths,
     project: str,
@@ -512,16 +539,24 @@ def run_stage(
     stage: str | None = None,
     answers: dict[str, str] | None = None,
     force: bool = False,
+    backend: str | None = None,
+    emit: Any = None,
 ) -> dict[str, Any]:
-    from .agents import MockInvoker
     from .engine import Engine
+    from .config import describe_backends, load_config, agent_routing
 
     catalog = load_sops(paths)
+    invoker = build_router(paths, override_backend=backend)
+    cfg = load_config(paths)
+    routing = agent_routing(cfg)
+    if backend:
+        routing = {k: backend for k in routing}
+
     engine = Engine(
         paths=paths,
         catalog=catalog,
-        invoker=MockInvoker(),
-        emit=lambda _m: None,
+        invoker=invoker,
+        emit=emit or (lambda _m: None),
     )
     report = engine.run(
         project=project,
@@ -537,6 +572,7 @@ def run_stage(
         "error": report.error,
         "needs_human": report.needs_human,
         "degraded": list(report.degraded.keys()),
+        "backend_routing": routing,
         "steps": [
             {
                 "id": s.step_id,

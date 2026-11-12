@@ -224,10 +224,14 @@ class Engine:
                     self.emit(f"  ! {step.id} 第 {attempts} 次失败，重试：{exc.message}")
                     continue
                 self.emit(f"  ✗ {step.id} 失败：{exc.message}")
+                if exc.hint:
+                    self.emit(f"      提示：{exc.hint}")
                 return Outcome("failed", exc.message), attempts
             except PipelineError as exc:
                 last_error = exc
                 self.emit(f"  ✗ {step.id} 失败：{exc.message}")
+                if exc.hint:
+                    self.emit(f"      提示：{exc.hint}")
                 return Outcome("failed", exc.message), attempts
 
         detail = last_error.message if last_error else "未知错误"

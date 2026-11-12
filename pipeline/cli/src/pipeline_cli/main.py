@@ -19,6 +19,7 @@ from rich.table import Table
 
 from . import __version__
 from .agents import MockInvoker
+from .config import agent_routing, describe_backends, load_config, resolve_backend
 from .checks import (
     MarkdownDoc,
     evaluate_ruleset,
@@ -40,6 +41,9 @@ from .models import (
 from .paths import Paths
 from .sops import load_sops
 from .state import StateStore
+
+# 路由构造器（在本模块内导入以避免循环依赖）
+from .operations import build_router
 
 app = typer.Typer(
     add_completion=False,
@@ -219,7 +223,9 @@ def run(
     ),
     force: bool = typer.Option(False, "--force", help="忽略已完成步骤，强制重跑"),
     dry_run: bool = typer.Option(False, "--dry-run", help="只走骨架，不实际调用 Agent"),
-    agent: str = typer.Option("mock", "--agent", help="mock | headless"),
+    backend: Optional[str] = typer.Option(
+        None, "--backend", help="临时覆盖后端（mock|deepseek|claude），不写则用配置"
+    ),
 ) -> None:
     """执行一个阶段的 SOP（跑完必停在关卡）。"""
     try:
@@ -234,17 +240,15 @@ def run(
             k, _, v = item.partition("=")
             answers[k.strip()] = v.strip()
 
-        invoker = MockInvoker()
-        if agent == "headless":
-            console.print(
-                "[yellow]![/yellow] headless 通道将在 M3 接入，本次降级为 mock"
-            )
-            invoker = MockInvoker()
+        if dry_run:
+            backend = "mock"
+        if backend == "headless":
+            backend = "claude"
 
         engine = Engine(
             paths=paths,
             catalog=catalog,
-            invoker=invoker,
+            invoker=build_router(paths, override_backend=backend),
             emit=lambda m: console.print(m),
         )
         report = engine.run(
@@ -708,6 +712,137 @@ def preflight(
 # ---------------------------------------------------------------------------
 # version
 # ---------------------------------------------------------------------------
+
+@app.command()
+def config_check(
+    probe: bool = typer.Option(
+        False, "--probe", help="实际探测各后端可用性（会消耗少量额度）"
+    ),
+) -> None:
+    """检查后端配置：每个岗位用哪个模型、密钥是否就绪。"""
+    try:
+        paths = _paths()
+        cfg = load_config(paths)
+
+        cfg_file = paths.pipeline / "config.yaml"
+        if cfg_file.exists():
+            console.print(f"[green]✓[/green] 配置文件: {paths.rel(cfg_file)}")
+        else:
+            console.print(
+                f"[yellow]![/yellow] 未找到 {paths.rel(cfg_file)}，使用内置默认配置"
+                f"\n  启用自定义配置：cp {paths.rel(paths.pipeline / 'config.example.yaml')} "
+                f"{paths.rel(cfg_file)}"
+            )
+
+        console.print(f"\n默认后端: [bold]{cfg.get('default_backend')}[/bold]\n")
+
+        # 岗位路由表
+        routing = agent_routing(cfg)
+        t = Table(title="岗位 → 后端", show_header=True)
+        t.add_column("岗位")
+        t.add_column("后端")
+        t.add_column("类型")
+        t.add_column("就绪")
+        for agent, backend_name in routing.items():
+            spec = (cfg.get("backends") or {}).get(backend_name) or {}
+            btype = spec.get("type", "?")
+            if btype == "mock":
+                ready = "[green]✓ 无需密钥[/green]"
+            elif btype == "claude_cli":
+                import shutil
+
+                binary = str(spec.get("binary") or "claude")
+                ready = (
+                    "[green]✓ CLI 已安装[/green]"
+                    if shutil.which(binary)
+                    else f"[red]✗ 未找到 {binary}[/red]"
+                )
+            else:
+                env_name = spec.get("api_key_env")
+                import os
+
+                ok = bool(env_name and os.environ.get(str(env_name)))
+                ready = (
+                    f"[green]✓ {env_name}[/green]"
+                    if ok
+                    else f"[red]✗ 未设置 {env_name}[/red]"
+                )
+            t.add_row(agent, backend_name, btype, ready)
+        console.print(t)
+
+        # 后端清单
+        console.print("")
+        bt = Table(title="已定义后端", show_header=True)
+        bt.add_column("名称")
+        bt.add_column("类型")
+        bt.add_column("模型")
+        bt.add_column("密钥变量")
+        bt.add_column("状态")
+        for b in describe_backends(cfg):
+            if b["type"] == "mock":
+                status = "[green]可用[/green]"
+            elif b["type"] == "claude_cli":
+                status = "[green]需 CLI 登录[/green]"
+            else:
+                status = (
+                    "[green]密钥已设置[/green]"
+                    if b["api_key_present"]
+                    else "[yellow]缺密钥[/yellow]"
+                )
+            bt.add_row(
+                b["name"],
+                b["type"],
+                str(b["model"] or "-"),
+                str(b["api_key_env"] or "-"),
+                status,
+            )
+        console.print(bt)
+
+        if probe:
+            console.print("\n[bold]探测各后端…[/bold]")
+            for b in describe_backends(cfg):
+                if b["type"] == "mock":
+                    console.print(f"  · {b['name']}: mock（跳过）")
+                    continue
+                try:
+                    spec = resolve_backend(
+                        cfg, agent="planner", override=str(b["name"])
+                    )
+                    from .invokers import build_invoker
+
+                    inv = build_invoker(spec, cfg=cfg)
+                    fake = type(
+                        "R",
+                        (),
+                        {
+                            "agent": "planner",
+                            "task": "连通性测试：只回复 OK 两个字母",
+                            "output_path": paths.root / ".probe.tmp",
+                            "output_manifest": None,
+                            "must_read": [],
+                            "focus": [],
+                            "constraints": [],
+                            "agent_definition": None,
+                            "timeout_sec": 60,
+                        },
+                    )()
+                    res = inv.invoke(fake, paths=paths)  # type: ignore[arg-type]
+                    (paths.root / ".probe.tmp").unlink(missing_ok=True)
+                    console.print(
+                        f"  [green]✓[/green] {b['name']}: 返回 {len(res.content)} 字符"
+                    )
+                except PipelineError as exc:
+                    console.print(f"  [red]✗[/red] {b['name']}: {exc.message}")
+                except Exception as exc:  # noqa: BLE001
+                    console.print(f"  [red]✗[/red] {b['name']}: {exc}")
+
+        console.print(
+            "\n提示：密钥设为环境变量，例如 "
+            "[bold]export DEEPSEEK_API_KEY=sk-xxx[/bold]（写入 ~/.zshrc 长期生效）"
+        )
+    except PipelineError as exc:
+        _fail(exc)
+
 
 @app.command()
 def serve(

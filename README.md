@@ -82,6 +82,23 @@ cd ../../demo-app && flutter test
 
 ---
 
+## 模型配置
+
+**默认不调用任何模型**（`default_backend: mock`，产出结构合法的占位内容）。
+接真模型：
+
+```bash
+export DEEPSEEK_API_KEY=sk-xxxx          # 环境变量，不写进文件
+cp pipeline/config.example.yaml pipeline/config.yaml
+pipeline config-check --probe           # 验证连通性
+```
+
+支持 OpenAI 兼容协议（DeepSeek / Kimi / 通义 / OpenAI）与 Claude CLI 无头模式，
+可按岗位混合路由（文本岗用便宜 API、开发岗用带工具的 CLI）。
+详见 [`docs/HANDOFF.md`](docs/HANDOFF.md) 第 2.7 节。
+
+---
+
 ## 文档索引
 
 | 文档 | 内容 |

@@ -223,7 +223,6 @@ pipeline run my-app --stage=planning --agent=headless
 ---
 
 ## 2.6 可视化台（浏览器操作）
-
 ```bash
 cd pipeline/cli && export PATH="$PWD:$PATH"
 pipeline serve --open      # 默认 http://127.0.0.1:8787
@@ -257,6 +256,88 @@ POST /api/projects/{p}/gate                关卡 {stage, action, comment}
 POST /api/projects/{p}/run                 自动执行 {stage, answers}
 GET  /api/templates/{id}                   取模板骨架
 ```
+
+---
+
+## 2.7 模型配置（接真模型）
+
+> **当前默认不调用任何模型**：`default_backend: mock`，产出是结构合法的占位内容。
+> 下面是把占位符换成真实内容的配置方法。
+
+### 架构：一个 Protocol，三个实现
+
+```
+engine → invoke_agent → AgentInvoker(Protocol)
+                         ├── MockInvoker            占位符（默认，无需配置）
+                         ├── OpenAICompatibleInvoker  DeepSeek/Kimi/通义/OpenAI
+                         └── ClaudeCliInvoker        claude -p 无头模式（带工具）
+```
+
+**换后端不影响引擎/SOP/状态机**——这是当初把 Agent 抽象成 Protocol 的目的。
+
+### 快速接入 DeepSeek（推荐起步）
+
+```bash
+# 1. 拿 Key：https://platform.deepseek.com
+# 2. 设环境变量（写进 ~/.zshrc 长期生效）
+export DEEPSEEK_API_KEY=sk-xxxxxxxx
+
+# 3. 复制配置并启用
+cp pipeline/config.example.yaml pipeline/config.yaml
+#    编辑 config.yaml：把 default_backend 改成 deepseek
+
+# 4. 验证
+pipeline config-check
+pipeline config-check --probe      # 实际调用一次（消耗少量额度）
+
+# 5. 跑一个阶段
+pipeline run my-app --stage=planning
+```
+
+### 混合模式（推荐长期用）
+
+文本岗位用便宜 API，开发岗位用带工具的 CLI：
+
+```yaml
+# pipeline/config.yaml
+agents:
+  planner:   { backend: deepseek }
+  designer:  { backend: deepseek }
+  tester:    { backend: deepseek }
+  acceptor:  { backend: deepseek }
+  developer: { backend: claude }     # 需要写代码/跑测试
+```
+
+`developer` 用 Claude CLI 需先登录：
+```bash
+claude          # 进入交互后执行 /login（需要订阅）
+```
+
+### 三个必须知道的机制
+
+**① 上下文预算（`context.max_total_chars`）**
+`must_read` 可能是十几 KB 的 PRD。超预算时**保留全部标题、等比压缩各节正文**
+（比粗暴截断好：模型仍看得到完整目录结构）。
+
+**② 自修复（`repair.max_attempts`）**
+模型第一次产出常差一点（少章节/表头列名不对）。开启后会把 manifest 校验失败项
+反馈给模型做**最小改动修复**，比整段重跑便宜得多。
+采纳判据：违规数减少 **且** 内容长度不缩水到一半以下——防模型用“删内容”来减少违规。
+
+**③ 密钥永不落盘**
+配置里只写 `api_key_env: DEEPSEEK_API_KEY`，真值从环境变量读。
+`pipeline config-check` 只显示「是否已设置」，不打印值。
+
+### 常见报错对照
+
+| 报错 | 原因 | 解决 |
+|------|------|------|
+| `后端 X 缺少 API Key` | 环境变量未设 | `export X_API_KEY=...` |
+| `认证失败`（401） | Key 无效/过期 | 重新生成 |
+| `余额不足`（402） | 账户欠费 | 充值 |
+| `触发限流`（429） | 请求过密 | 等待或降低并发 |
+| `claude CLI 未登录` | 未执行 /login | 终端跑 `claude` 后 `/login` |
+| `请求超时` | 材料过大/网络慢 | 增大 `timeout_sec` 或降低 `max_total_chars` |
 
 ---
 
