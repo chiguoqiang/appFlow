@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# pipeline —— 调度器入口脚本（无需 pip install）
+#
+# 用法：
+#   export PATH="<repo>/pipeline/cli:$PATH"
+#   pipeline status demo-habit
+#
+# 原理：定位本脚本所在目录 → 用同目录 .venv 的 python → 以模块方式运行。
+# PYTHONPATH 指向 src/，这样不装包也能 import。
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_PY="$HERE/.venv/bin/python"
+
+if [[ ! -x "$VENV_PY" ]]; then
+  cat >&2 <<EOF
+✗ 未找到虚拟环境: $VENV_PY
+
+请先初始化（首次或换机后）：
+  cd $HERE
+  uv venv --python python3.12 .venv
+  uv pip install --python .venv/bin/python typer pydantic pyyaml pytest
+EOF
+  exit 1
+fi
+
+export PYTHONPATH="$HERE/src${PYTHONPATH:+:$PYTHONPATH}"
+exec "$VENV_PY" -m pipeline_cli.main "$@"

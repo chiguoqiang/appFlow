@@ -330,6 +330,115 @@ def gate(
 
 
 # ---------------------------------------------------------------------------
+# submit（手工交付物提交评审）
+# ---------------------------------------------------------------------------
+
+@app.command()
+def submit(
+    project: str = typer.Argument(..., help="项目代号"),
+    stage: Optional[str] = typer.Option(None, "--stage", help="阶段 id（默认当前阶段）"),
+    deliverable: Optional[str] = typer.Option(
+        None, "--deliverable", help="交付物 id（默认取 SOP 主输出）"
+    ),
+    skip_validate: bool = typer.Option(
+        False, "--skip-validate", help="跳过 manifest 校验（不推荐）"
+    ),
+) -> None:
+    """提交手工编写的交付物，进入关卡待评审。
+
+    用于「混合模式」：你自己写交付物内容 → 机器校验结构 → 进入关卡等人确认。
+    等价于 run 阶段，但跳过 invoke_agent（不调用 Agent 生成内容）。
+    """
+    try:
+        paths = _paths()
+        catalog = load_sops(paths)
+        store = StateStore(paths, project)
+        state = store.load()
+
+        target_stage = stage or state.current_stage
+        if target_stage == "done":
+            console.print("[red]✗[/red] 项目已完成")
+            raise typer.Exit(code=2)
+
+        sop = catalog.by_stage(target_stage)
+        did = deliverable or sop.output_deliverable
+        if not did:
+            console.print(f"[red]✗[/red] 阶段 {target_stage} 未定义交付物")
+            raise typer.Exit(code=2)
+
+        d = state.deliverable(did)
+        if d is None:
+            console.print(f"[red]✗[/red] 交付物未登记: {did}")
+            raise typer.Exit(code=2)
+
+        target = paths.resolve(d.path)
+        if not target.exists():
+            console.print(
+                f"[red]✗[/red] 文件不存在: {d.path}\n"
+                f"  请先创建并写入内容"
+            )
+            raise typer.Exit(code=1)
+
+        # 1) 机械校验
+        if not skip_validate:
+            manifest_rel = sop.output.get("manifest") or (
+                f"pipeline/manifests/{did}.manifest.yaml"
+            )
+            if paths.resolve(manifest_rel).exists():
+                manifest = load_manifest(paths, manifest_rel)
+                result = validate_manifest(
+                    target.read_text(encoding="utf-8"), manifest
+                )
+                console.print(result.render())
+                if not result.ok:
+                    console.print(
+                        "\n[yellow]提示[/yellow] 修正上述问题后重新执行 submit；"
+                        "或用 --skip-validate 强制提交（不推荐）"
+                    )
+                    raise typer.Exit(code=1)
+            else:
+                console.print(f"[yellow]![/yellow] 无 manifest，跳过校验: {manifest_rel}")
+
+        # 2) 登记版本与状态
+        d.version = max(d.version, 1) if d.version == 0 else d.version + 1
+        d.status = "in-review"
+        d.stale_reason = None
+
+        st = state.stage(target_stage)
+        if st is not None:
+            st.status = "awaiting_review"
+            st.sop = sop.id
+            st.review_rounds = max(st.review_rounds, 1)
+            st.gate.actions = list(sop.gate.actions or ["approve", "revise", "reject"])
+            st.gate.review_package_paths = [
+                p.replace("{{project}}", project) for p in sop.gate.review_package
+            ] or [d.path]
+            st.gate.resolved_at = None
+        state.current_stage = target_stage
+
+        store.log(
+            "review_submitted",
+            target_stage,
+            f"手工提交 {did} v{d.version}",
+            actor="user",
+            state=state,
+        )
+        store.save(state)
+
+        console.print(f"[green]✓[/green] 已提交 {did} v{d.version} 进入评审")
+        console.print(f"\n  关卡: {sop.gate.title or target_stage}")
+        console.print(f"  评审包: {d.path}")
+        if sop.gate.actions:
+            console.print(f"  可用动作: {' / '.join(sop.gate.actions)}")
+        console.print(
+            f"\n  下一步: [bold]pipeline gate {project} --stage={target_stage} "
+            f"--action=approve[/bold]"
+        )
+    except PipelineError as exc:
+        _fail(exc)
+
+
+# ---------------------------------------------------------------------------
 # status
 # ---------------------------------------------------------------------------
 

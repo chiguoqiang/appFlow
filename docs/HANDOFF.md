@@ -34,9 +34,16 @@
 cd pipeline/cli
 uv venv --python python3.12 .venv
 uv pip install --python .venv/bin/python typer pydantic pyyaml pytest
-# 验证
+
+# 让 `pipeline` 命令可用（无需 pip install）
+export PATH="$PWD:$PATH"
+pipeline version        # 应输出 pipeline-cli 0.2.0
+
+# 验证测试
 PYTHONPATH=src ./.venv/bin/python -m pytest tests/ -q
 ```
+
+> 💡 把 `export PATH="<repo>/pipeline/cli:$PATH"` 写进 `~/.zshrc` 就不用每次都设。
 
 > ⚠️ `.venv` 不入版本库（见 `.gitignore`），必须重建。
 
@@ -147,6 +154,74 @@ $ pipeline gate smoke --stage=planning --action=reject --comment="目标用户�
 
 ---
 
+## 2.5 两种使用模式（重要）
+
+调度器的 `invoke_agent` 动作有两种实现，决定了你能用它做什么。
+
+### 模式一 · mock 生成（当前默认）
+
+```bash
+pipeline run my-app --stage=planning
+```
+
+| 能验证 | 不能得到 |
+|--------|---------|
+| 流程顺序、关卡暂停、stale 传播 | ❌ 可用的 PRD 内容 |
+| manifest 结构校验、规则引擎 | |
+| 断点续跑、失败策略 | |
+
+`MockInvoker` 只管让**结构合法**（章节齐、表格列对、编号格式对），内容全是占位符
+（`#4F6BED`、`本节说明「产品概述」的内容。`）。**适合演示流程机制，不适合真做项目。**
+
+### 模式二 · 混合模式 ⭐ 做真项目用这个
+
+**内容由人或 IDE 内的 Agent 写，机器负责校验与状态管理。**
+
+```bash
+# ① 建项目
+pipeline init my-app
+
+# ② 手工（或在 IDE 里让 AI 生成）写好交付物
+vim pipeline/projects/my-app/00-project-brief.md
+
+# ③ 提交 → 机器按 manifest 校验
+pipeline submit my-app --stage=brief
+
+# ③' 如果校验失败，会精确告诉你缺什么：
+#     ✗ manifest 校验失败（10 项）
+#       - user-stories: 首列值「1」不匹配 US-\d+
+#       - features: 缺少章节「功能需求」
+#     → 补齐后重新 submit
+
+# ④ 人工关卡
+pipeline gate my-app --stage=brief --action=approve
+
+# ⑤ 下一阶段重复 ②~④
+```
+
+**这个模式相对 P0（纯对话）多出两道保险**：
+
+1. 交付物结构不合规 → **被 `submit` 拦住**（不用肉眼查字段）
+2. 关卡状态 / stale 传播 → **由状态机记录**（不用手写 JSON）
+
+**已实测的完整闭环**：
+
+```
+手工写残缺 PRD → submit → ✗ 拦住 10 项问题（含"首列应为 US-1"）
+补齐合规 PRD  → submit → ✓ 12 章节通过 → v2 in-review
+               → gate approve → ✓ approved → 推进 design
+```
+
+### 模式三 · 全自动（M3 之后）
+
+```bash
+pipeline run my-app --stage=planning --agent=headless
+```
+
+需要 M3 接入 Claude Code headless。**这是最终目标，但目前不可用。**
+
+---
+
 ## 3. 目录导航
 
 ```
@@ -187,32 +262,42 @@ project/
 ## 4. 常用命令速查
 
 ### 调度器（M2）
+
+先配置命令入口：
 ```bash
-cd pipeline/cli
+cd /path/to/project/pipeline/cli
+export PATH="$PWD:$PATH"      # 让 pipeline 命令可用
+```
 
+```bash
 # 初始化项目
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main init my-app --flow=new_project
+pipeline init my-app --flow=new_project
 
-# 执行阶段（跑完必停在 gate）
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main run my-app --stage=brief \
-  --answer core-idea="一句话想法" --answer target-users="目标用户"
+# 方式一：mock 自动生成（验证流程机制，内容为占位符）
+pipeline run my-app --stage=brief \
+  --answer core-idea="一句话想法" --answer target-users="目标用户" \
+  --answer mvp-features="功能清单" --answer out-of-scope="不做的事" \
+  --answer tech-constraints="技术约束"
+
+# 方式二：混合模式（自己写内容 → 机器校验 → 进关卡）⭐ 推荐
+#   1. 手工编辑 pipeline/projects/my-app/01-prd.md
+#   2. 提交校验
+pipeline submit my-app --stage=planning
 
 # 查看状态
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main status my-app -v
+pipeline status my-app -v
 
 # 关卡三态
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main gate my-app --stage=brief --action=approve
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main gate my-app --stage=brief --action=revise --comment="目标用户要改"
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main gate my-app --stage=brief --action=reject --comment="方向错了"
+pipeline gate my-app --stage=planning --action=approve
+pipeline gate my-app --stage=planning --action=revise --comment="目标用户要改"
+pipeline gate my-app --stage=planning --action=reject --comment="方向错了"
 
-# 校验交付物
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main validate my-app --deliverable=prd --rules
+# 校验交付物（含内容规则）
+pipeline validate my-app --deliverable=prd --rules
 
-# 报告
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main report my-app
-
-# 资产检查
-PYTHONPATH=src ./.venv/bin/python -m pipeline_cli.main preflight my-app
+# 报告 / 资产检查
+pipeline report my-app
+pipeline preflight my-app
 ```
 
 ### 契约自检
