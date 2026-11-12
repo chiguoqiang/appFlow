@@ -1,0 +1,218 @@
+{
+  "project": {
+    "codename": "agent_demo",
+    "platform": "flutter",
+    "flow": "new_project",
+    "target_project": null,
+    "created_at": "2026-11-12T17:19:58",
+    "app_repo_path": ""
+  },
+  "current_stage": "brief",
+  "stages": [
+    {
+      "id": "brief",
+      "name": "立项简报",
+      "owner_agent": "user",
+      "status": "running",
+      "sop": "00-brief",
+      "review_rounds": 0,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [],
+        "require_comment_on": [],
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "planning",
+      "name": "规划",
+      "owner_agent": "planner",
+      "status": "locked",
+      "sop": "01-planning",
+      "review_rounds": 0,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [],
+        "require_comment_on": [],
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "design",
+      "name": "设计",
+      "owner_agent": "designer",
+      "status": "locked",
+      "sop": "02-design",
+      "review_rounds": 0,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [],
+        "require_comment_on": [],
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "development",
+      "name": "开发",
+      "owner_agent": "developer",
+      "status": "locked",
+      "sop": "03-development",
+      "review_rounds": 0,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [],
+        "require_comment_on": [],
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "testing",
+      "name": "测试",
+      "owner_agent": "tester",
+      "status": "locked",
+      "sop": "04-testing",
+      "review_rounds": 0,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [],
+        "require_comment_on": [],
+        "resolved_at": null
+      }
+    },
+    {
+      "id": "acceptance",
+      "name": "验收",
+      "owner_agent": "acceptor",
+      "status": "locked",
+      "sop": "05-acceptance",
+      "review_rounds": 0,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [],
+        "require_comment_on": [],
+        "resolved_at": null
+      }
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "project_brief",
+      "path": "pipeline/projects/agent_demo/00-project-brief.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "user",
+      "stale_reason": "骨架已就绪，待填充"
+    },
+    {
+      "id": "prd",
+      "path": "pipeline/projects/agent_demo/01-prd.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "planner",
+      "stale_reason": "骨架已就绪，待填充"
+    },
+    {
+      "id": "design_brief",
+      "path": "pipeline/projects/agent_demo/02-design-brief.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "designer",
+      "stale_reason": "骨架已就绪，待填充"
+    },
+    {
+      "id": "design_delivery",
+      "path": "pipeline/projects/agent_demo/03-design-delivery.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "designer",
+      "stale_reason": "骨架已就绪，待填充"
+    },
+    {
+      "id": "dev_report",
+      "path": "pipeline/projects/agent_demo/04-dev-report.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "developer",
+      "stale_reason": "骨架已就绪，待填充"
+    },
+    {
+      "id": "test_report",
+      "path": "pipeline/projects/agent_demo/05-test-report.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "tester",
+      "stale_reason": "骨架已就绪，待填充"
+    },
+    {
+      "id": "acceptance_report",
+      "path": "pipeline/projects/agent_demo/06-acceptance-report.md",
+      "version": 0,
+      "status": "draft",
+      "produced_by": "acceptor",
+      "stale_reason": "骨架已就绪，待填充"
+    }
+  ],
+  "history": [
+    {
+      "ts": "2026-11-12T17:19:58",
+      "type": "stage_started",
+      "stage": "brief",
+      "actor": "user",
+      "detail": "项目初始化（new_project）",
+      "deliverable_versions": {
+        "project_brief": 0,
+        "prd": 0,
+        "design_brief": 0,
+        "design_delivery": 0,
+        "dev_report": 0,
+        "test_report": 0,
+        "acceptance_report": 0
+      }
+    },
+    {
+      "ts": "2026-11-12T17:20:27",
+      "type": "stage_started",
+      "stage": "brief",
+      "actor": "user",
+      "detail": "执行 SOP 00-brief",
+      "deliverable_versions": {
+        "project_brief": 0,
+        "prd": 0,
+        "design_brief": 0,
+        "design_delivery": 0,
+        "dev_report": 0,
+        "test_report": 0,
+        "acceptance_report": 0
+      }
+    }
+  ],
+  "backfills": [],
+  "gate_log": [],
+  "stage_progress": {
+    "brief": {}
+  }
+}
