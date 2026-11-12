@@ -1,0 +1,164 @@
+sop: 02-design
+stage: design
+name: 设计（需求书 + 三件套）
+flow: new_project
+owner_agent: designer
+description: >
+  把 PRD 翻译成 Figma 可执行的设计指令，驱动生成并读回校验，交付三件套。
+  P0 教训：token 必须覆盖全部设计值（否则开发被迫硬编码）；
+  容量/网格类规约必须写公式（否则契约与实际冲突）。
+depends_on: [01-planning]
+
+inputs:
+  - path: pipeline/projects/{{project}}/01-prd.md
+    deliverable: prd
+  - path: pipeline/templates/02-design-brief.template.md
+  - path: pipeline/templates/03-design-delivery.template.md
+
+output:
+  deliverable: design_delivery
+  path: pipeline/projects/{{project}}/03-design-delivery.md
+  manifest: pipeline/manifests/design_delivery.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/01-prd.md
+          deliverable: prd
+          min_status: approved
+      forbidden_stale: [prd]
+
+  - id: preflight-figma
+    action: check_rules
+    description: 探测 Figma MCP 连通性与组件库是否存在（P0 教训：不要假设可用）
+    params:
+      ruleset: pipeline/gates/asset.rules.yaml
+      target: env
+      rule_ids: [AR-01, AR-02]
+    on_fail: degrade
+    backfill:
+      item: "Figma MCP 不可用或团队组件库缺失；设计走『项目内自建 token 集』模式，node ID 与截图暂缺"
+      owner: designer
+      close_condition: "Figma 令牌有效 + 4 页 node ID 读回校验通过 + 4 页 golden master 已导出"
+
+  - id: draft-design-brief
+    action: invoke_agent
+    params:
+      agent: designer
+      agent_definition: pipeline/agents/designer.md
+      output_path: pipeline/projects/{{project}}/02-design-brief.md
+      output_manifest: pipeline/manifests/design_brief.manifest.yaml
+      context:
+        task: "把 PRD 翻译成设计需求书：设计原则 + token 集 + 逐页设计指令 + 导航流"
+        must_read:
+          - pipeline/projects/{{project}}/01-prd.md
+          - pipeline/templates/02-design-brief.template.md
+        focus:
+          - "token 必须覆盖逐页指令里出现的每一个颜色/字号/间距/圆角值（token 覆盖自检）"
+          - "容量、网格、循环类规约必须写成公式，不写固定数字"
+          - "每页必须包含空态/加载态/错误态定义"
+          - "元素与数据绑定必须能对应 PRD 的功能编号"
+      timeout_sec: 900
+    on_fail: retry
+
+  - id: validate-design-brief
+    action: validate_deliverable
+    params:
+      deliverable: design_brief
+      manifest: pipeline/manifests/design_brief.manifest.yaml
+      fail_on: any
+
+  - id: check-token-coverage
+    action: check_rules
+    description: token 覆盖自检（P0 教训：热力图圆角 8、空态灰无 token → 开发硬编码）
+    params:
+      ruleset: pipeline/gates/deliverable.rules.yaml
+      target: pipeline/projects/{{project}}/02-design-brief.md
+      rule_ids: [DR-04, DR-05]
+
+  - id: generate-and-readback
+    action: invoke_agent
+    description: 驱动 Figma 生成（或人工代执行）并按 node ID 读回校验
+    params:
+      agent: designer
+      agent_definition: pipeline/agents/designer.md
+      output_path: pipeline/projects/{{project}}/03-design-delivery.md
+      output_manifest: pipeline/manifests/design_delivery.manifest.yaml
+      context:
+        task: "生成/获取设计稿并用 MCP 读回，填写三件套：node ID、tokens JSON、页面截图"
+        must_read:
+          - pipeline/projects/{{project}}/02-design-brief.md
+          - pipeline/templates/03-design-delivery.template.md
+        focus:
+          - "node ID 必须经 MCP 读回验证真实存在，不可编造"
+          - "tokens JSON 与需求书第 2 节必须逐值一致"
+          - "截图缺失时字段写 pending 并在决策记录说明，不得静默留空"
+          - "逐轮记录『生成→校验』过程"
+      timeout_sec: 900
+    on_fail: degrade
+    backfill:
+      item: "设计三件套部分字段 pending（node ID / 截图缺失），开发以 tokens JSON 为准先行"
+      owner: designer
+      close_condition: "三件套升 v2，node ID 全部读回通过且 4 页截图齐备"
+      blocks_acceptance: true
+
+  - id: validate-delivery
+    action: validate_deliverable
+    params:
+      deliverable: design_delivery
+      manifest: pipeline/manifests/design_delivery.manifest.yaml
+      fail_on: any
+
+  - id: register-figma-backfill
+    action: register_backfill
+    description: >
+      若本阶段发生任何降级（Figma 不可用 / 三件套 pending / 组件库缺失），
+      在此统一登记回填任务。P0 教训：降级不登记 = 必然遗忘。
+    params:
+      item: "设计阶段降级项汇总（node ID / 截图 / 组件库 / tokens 回填）"
+      owner: designer
+      close_condition: "三件套升 v2：node ID 全部 MCP 读回通过 + 4 页 golden master 齐备"
+      blocks_acceptance: true
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 2 · 设计评审"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/02-design-brief.md
+        - pipeline/projects/{{project}}/03-design-delivery.md
+      review_package_extra:
+        - "设计稿链接 / 页面截图（若 pending 需在评审包中显式提示）"
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "关卡 2 · 设计评审"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/02-design-brief.md
+    - pipeline/projects/{{project}}/03-design-delivery.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 03-development
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [dev_report, test_report, acceptance_report]
+  reopen_sop: 01-planning
+
+dod:
+  - "pipeline validate {{project}} --deliverable=design_brief 通过"
+  - "pipeline validate {{project}} --deliverable=design_delivery 通过"
+  - "DR-04（token 覆盖）通过：需求书中出现的所有设计值均在 token 表内"
+  - "DR-05（公式化规约）通过：无固定行数/固定容量类硬编码规约"

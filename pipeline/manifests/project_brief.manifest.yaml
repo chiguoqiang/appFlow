@@ -1,0 +1,70 @@
+manifest: project_brief
+deliverable: project_brief
+default_path: pipeline/projects/{{project}}/00-project-brief.md
+description: 立项简报结构校验
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [项目代号, 简报版本, 状态]
+
+  - id: core-idea
+    title: 核心想法
+    type: text
+    required: true
+    min_length: 20
+    description: 1-3 句说清做什么/给谁用/解决什么问题
+
+  - id: target-users
+    title: 目标用户
+    type: table
+    required: true
+    columns: [用户群, 描述, 核心诉求]
+    min_rows: 1
+
+  - id: features
+    title: 功能清单
+    type: table
+    required: true
+    columns: ["#", 功能, 优先级, 验收要点]
+    min_rows: 1
+    forbid_column_values:
+      优先级: ["", "待定", "TBD"]
+
+  - id: out-of-scope
+    title: 明确不做
+    type: list
+    required: true
+    min_items: 3
+    description: 至少 3 项，防范围蔓延
+
+  - id: constraints
+    title: 技术约束
+    type: table
+    required: true
+    columns: [约束项, 值]
+
+  - id: open-questions
+    title: 待澄清
+    type: text
+    required: true
+    description: 可为空表，但章节必须存在
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # 简报定稿必须无未回答的待澄清
+  forbid_pattern:
+    - pattern: "\\|\\s*待回答\\s*\\|"
+      scope: open-questions
+      message: "存在未回答的待澄清问题，不可提交关卡"

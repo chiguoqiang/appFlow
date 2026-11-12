@@ -1,0 +1,115 @@
+sop: 11-planning-delta
+stage: planning_delta
+name: 增量规划（变更 PRD）
+flow: new_requirement
+owner_agent: planner
+description: >
+  只写"变更"部分，不重写整份 PRD。产出增量 PRD（delta），
+  并显式列出受影响的既有功能与需要回归的范围。
+depends_on: [10-requirement-intake]
+
+inputs:
+  - path: pipeline/projects/{{project}}/10-requirement.md
+    deliverable: requirement_brief
+  - path: pipeline/projects/{{target_project}}/01-prd.md
+    deliverable: prd
+    description: 目标项目的现有 PRD（基线）
+  - path: pipeline/projects/{{project}}/intake-routing.md
+    deliverable: intake_routing
+
+output:
+  deliverable: prd_delta
+  path: pipeline/projects/{{project}}/11-prd-delta.md
+  manifest: pipeline/manifests/prd_delta.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/10-requirement.md
+          deliverable: requirement_brief
+          min_status: approved
+        - path: pipeline/projects/{{target_project}}/01-prd.md
+          deliverable: prd
+          min_status: approved
+      forbidden_stale: [prd]
+
+  - id: draft-delta
+    action: invoke_agent
+    params:
+      agent: planner
+      agent_definition: pipeline/agents/planner.md
+      output_path: pipeline/projects/{{project}}/11-prd-delta.md
+      output_manifest: pipeline/manifests/prd_delta.manifest.yaml
+      context:
+        task: "基于现有 PRD 与本需求，产出增量 PRD（只描述变更，不重写全文）"
+        must_read:
+          - pipeline/projects/{{project}}/10-requirement.md
+          - pipeline/projects/{{target_project}}/01-prd.md
+          - pipeline/projects/{{project}}/intake-routing.md
+        focus:
+          - "变更清单必须最小化：只列真正变化的用户故事/功能/数据/页面"
+          - "每条变更必须标注影响类型：新增 | 修改 | 删除"
+          - "必须显式列出『受影响的既有功能』与『必须回归的范围』"
+          - "若涉及新页面，必须给出 PG 编号（延续既有编号序列，不复用）"
+          - "若涉及数据模型变更，必须给出迁移/兼容方案"
+          - "统计/业务口径若变化，必须独立成节写清新旧差异"
+        constraints:
+          - "不得重写与本次需求无关的既有内容"
+          - "不得扩大需求范围（需求简报外的一律列为『明确不做』）"
+      timeout_sec: 900
+    on_fail: retry
+
+  - id: validate-delta
+    action: validate_deliverable
+    params:
+      deliverable: prd_delta
+      manifest: pipeline/manifests/prd_delta.manifest.yaml
+      fail_on: any
+
+  - id: check-delta-rules
+    action: check_rules
+    description: 增量 PRD 检查：变更标注完整、回归范围非空、无范围蔓延
+    params:
+      ruleset: pipeline/gates/deliverable.rules.yaml
+      target: pipeline/projects/{{project}}/11-prd-delta.md
+      rule_ids: [DR-11, DR-12, DR-13]
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "增量关卡 1 · 变更评审"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/11-prd-delta.md
+        - pipeline/projects/{{project}}/10-requirement.md
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "增量关卡 1 · 变更评审"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/11-prd-delta.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  # needs_new_pages=true 时进设计增量，否则直接开发
+  next_sop: "__IF_NEEDS_PAGES_THEN_12a_ELSE_12b__"
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [dev_report_delta, test_report_delta, acceptance_report_delta]
+  reopen_sop: 10-requirement-intake
+
+dod:
+  - "pipeline validate {{project}} --deliverable=prd_delta 通过"
+  - "DR-11（变更标注完整）/ DR-12（回归范围非空）/ DR-13（无范围蔓延）通过"
+  - "每条变更含影响类型标签（新增/修改/删除）"

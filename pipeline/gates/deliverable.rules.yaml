@@ -1,0 +1,176 @@
+ruleset: deliverable
+name: 交付物内容规则
+description: >
+  比 manifest 更进一步的语义检查——manifest 查"有没有"，
+  本规则集查"写了但写错了"（口径缺失、断言无证明、模糊表述等）。
+
+# DR-01 ~ DR-05  规划/设计
+# DR-06 ~ DR-07  开发
+# DR-08 ~ DR-10  验收/回填
+# DR-11 ~ DR-13  增量规划
+
+rules:
+  - id: DR-01
+    name: 含计数/比例/时间窗的产品必须显式定义口径
+    severity: major
+    target: prd
+    when:
+      document_contains_any: ["每天", "每周", "连续", "完成率", "剩余", "百分比", "%"]
+      lacks_section_any: ["统计口径", "统计定义", "计算口径", "口径定义"]
+    then:
+      verdict: fail
+      message: "产品涉及计数/比例/时间窗，但 PRD 未定义口径（P0 教训：weeklyN streak 歧义导致返工）"
+
+  - id: DR-02
+    name: 页面编号必须统一使用 PG-xx
+    severity: major
+    target: prd
+    when:
+      table_column_violates_pattern:
+        table: 页面清单
+        column: 页面 ID
+        pattern: "^PG-\\d{2}$"
+    then:
+      verdict: fail
+      message: "页面编号必须为 PG-01 形式，全程引用不可改名"
+
+  - id: DR-03
+    name: 每个 P0 功能至少 1 条测试要点
+    severity: major
+    target: prd
+    when:
+      cross_check:
+        from_table: 功能需求
+        from_filter: { 优先级: P0 }
+        to_table: 测试要点
+        match_column: 关联功能
+    then:
+      verdict: fail
+      message: "存在 P0 功能无对应测试要点"
+
+  - id: DR-04
+    name: token 必须覆盖逐页指令中出现的全部设计值
+    severity: blocker
+    target: design_brief
+    when:
+      token_coverage:
+        token_tables: [颜色 tokens, 文字 tokens, 间距与形状 tokens]
+        scan_sections: [逐页设计指令]
+        literals:
+          - "#[0-9A-Fa-f]{6}"
+          - "\\d+\\s*pt"
+          - "圆角\\s*\\d+"
+          - "字号\\s*\\d+"
+        allowlist: ["0", "1", "2", "100%"]
+    then:
+      verdict: fail
+      message: "逐页指令中出现未在 token 表定义的设计值（P0 教训：热力图圆角 8、空态灰无 token → 开发硬编码）"
+
+  - id: DR-05
+    name: 容量/网格类规约必须写公式
+    severity: major
+    target: design_brief
+    when:
+      forbid_pattern:
+        scope: 逐页设计指令
+        patterns:
+          - "固定\\s*\\d+\\s*行"
+          - "\\d+\\s*行\\s*[×x]\\s*\\d+\\s*列"
+    then:
+      verdict: fail
+      message: "容量/网格规约不得写死，必须写成公式（如 rows = ceil((leading + days) / 7)）"
+
+  - id: DR-06
+    name: 不可能性断言必须附构造性证明
+    severity: blocker
+    target: dev_report
+    when:
+      claim_without_proof:
+        triggers: ["不可能", "不存在", "不会发生", "必然不会", "逻辑自洽"]
+        evidence_required_any: ["证明", "构造", "反例", "测试验证", "假设待验证"]
+        window_lines: 5
+    then:
+      verdict: fail
+      message: "存在未证明的『不可能』断言（P0 教训：开发断言 done>due 不可能，实际存在）"
+
+  - id: DR-07
+    name: 设计偏差必须显式声明理由
+    severity: major
+    target: dev_report
+    when:
+      table_column_missing_value:
+        table: 设计还原说明
+        column: 偏差与理由
+        when_sibling_equals:
+          还原状态: "⚠️"
+    then:
+      verdict: fail
+      message: "存在设计偏差但未写理由（P0 教训：FAB 阴影超规范未声明）"
+
+  - id: DR-08
+    name: 验收必须披露未关闭回填任务
+    severity: major
+    target: acceptance_report
+    when:
+      backfill_disclosure_required: true
+    then:
+      verdict: fail
+      message: "存在未关闭回填任务但验收报告未披露"
+
+  - id: DR-09
+    name: 未达成项必须显式标记 ❌
+    severity: blocker
+    target: acceptance_report
+    when:
+      forbid_pattern:
+        scope: MVP 功能逐项核对
+        patterns: ["基本完成", "大致完成", "差不多", "应该没问题", "部分达成"]
+    then:
+      verdict: fail
+      message: "验收核对使用模糊表述，必须明确 ✅ / ⚠️ / ❌"
+
+  - id: DR-10
+    name: pending 字段必须对应回填登记
+    severity: major
+    target: design_delivery
+    when:
+      pending_without_backfill: true
+    then:
+      verdict: fail
+      message: "存在 pending 字段但未登记回填任务（降级即遗忘）"
+
+  - id: DR-11
+    name: 增量变更必须标注影响类型
+    severity: major
+    target: prd_delta
+    when:
+      table_column_violates_enum:
+        table: 变更清单
+        column: 影响类型
+        allowed: [新增, 修改, 删除]
+    then:
+      verdict: fail
+      message: "每条变更必须标注 新增/修改/删除"
+
+  - id: DR-12
+    name: 回归范围不得为空或敷衍
+    severity: blocker
+    target: prd_delta
+    when:
+      table: 受影响的既有功能
+      column: 必须回归
+      empty_or_any: ["", "否", "待定"]
+      count_gt: 0
+    then:
+      verdict: fail
+      message: "回归范围不得留空或写『否』；确无影响也须说明理由"
+
+  - id: DR-13
+    name: 增量 PRD 不得范围蔓延
+    severity: major
+    target: prd_delta
+    when:
+      section_absent_any: ["本次明确不做"]
+    then:
+      verdict: fail
+      message: "增量 PRD 必须显式声明『本次明确不做』以防范围蔓延"

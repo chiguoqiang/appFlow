@@ -1,0 +1,71 @@
+manifest: dev_report
+deliverable: dev_report
+default_path: pipeline/projects/{{project}}/04-dev-report.md
+description: 开发自测报告校验（P0 教训：不可能断言须证明、设计偏差须声明）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [报告版本, 状态]
+
+  - id: tasks
+    title: 任务完成情况
+    type: table
+    required: true
+    columns: ["#", 任务, 状态, 完成说明, PR/Commit]
+    min_rows: 1
+    row_id_pattern: "T-\\d+"
+    forbid_column_values:
+      状态: ["", "待定", "TBD"]
+
+  - id: tech-notes
+    title: 技术实现要点
+    type: list
+    required: true
+    min_items: 1
+
+  - id: design-fidelity
+    title: 设计还原说明
+    type: table
+    required: true
+    columns: [页面, 还原状态, 偏差与理由]
+    min_rows: 1
+    description: EVERY 偏差必须写理由；无偏差也要写"完整还原"
+
+  - id: self-test
+    title: 自测结果
+    type: table
+    required: true
+    columns: [检查项, 结果, 说明]
+
+  - id: known-issues
+    title: 已知问题与风险
+    type: table
+    required: true
+    columns: ["#", 问题/风险, 严重度, 处理建议]
+    description: 可为"无"，但章节必须存在
+
+  - id: focus-for-tester
+    title: 遗留给测试的关注点
+    type: list
+    required: true
+    min_items: 1
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # DR-06：凡断言"不可能/不存在/不会发生"必须附构造性证明
+  impossible_claim_rule:
+    triggers: ["不可能", "不存在", "不会发生", "必然不会", "逻辑自洽"]
+    requires_nearby: ["证明", "构造", "反例", "测试验证", "假设待验证"]
+    scope: [known-issues, self-test, design-fidelity]

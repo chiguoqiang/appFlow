@@ -1,0 +1,12 @@
+manifest: _freeform
+deliverable: _freeform
+default_path: ""
+description: >
+  自由格式交付物（中间产物、辅助报告）。
+  只做最低限度的非空校验，不约束结构——避免为辅助产物造模板负担。
+
+sections: []
+
+rules:
+  forbid_placeholder: true
+  min_length: 20

@@ -1,0 +1,58 @@
+manifest: requirement_brief
+deliverable: requirement_brief
+default_path: pipeline/projects/{{project}}/10-requirement.md
+description: 增量需求简报校验
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [需求编号, 目标项目, 状态]
+
+  - id: goal
+    title: 需求描述
+    type: text
+    required: true
+    min_length: 20
+    must_contain: [业务目标]
+
+  - id: scope
+    title: 改动范围
+    type: table
+    required: true
+    columns: [类型, 改动点, 说明]
+    min_rows: 1
+    forbid_column_values:
+      类型: ["", "待定", "TBD"]
+    description: 类型 ∈ 新增 | 修改 | 删除
+
+  - id: acceptance
+    title: 验收标准
+    type: table
+    required: true
+    columns: ["#", 验收标准, 验证方式]
+    min_rows: 1
+    forbid_column_values:
+      验证方式: ["", "待定", "人工看", "TBD"]
+
+  - id: regression-risk
+    title: 回归风险
+    type: table
+    required: true
+    columns: [受影响功能, 影响程度, 说明]
+    min_rows: 1
+
+  - id: out-of-scope
+    title: 明确不做
+    type: list
+    required: true
+    min_items: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  enum_column:
+    改动范围:
+      类型: [新增, 修改, 删除]

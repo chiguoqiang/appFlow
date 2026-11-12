@@ -1,0 +1,143 @@
+sop: 00-brief
+stage: brief
+name: 立项简报
+flow: new_project
+owner_agent: user
+description: >
+  把"一个想法"变成结构化简报。这是唯一由人主导的阶段——
+  Agent 只做追问与补全，不做决策。简报是后续所有阶段的验收基准源头。
+depends_on: []
+
+inputs:
+  - path: pipeline/templates/00-project-brief.template.md
+    description: 简报模板（结构契约）
+
+output:
+  deliverable: project_brief
+  path: pipeline/projects/{{project}}/00-project-brief.md
+  manifest: pipeline/manifests/project_brief.manifest.yaml
+
+steps:
+  - id: write-brief
+    action: collect_human_input
+    description: 采集核心想法、目标用户、功能清单（P0/P1）、明确不做、技术约束
+    params:
+      questions:
+        - id: core-idea
+          question: "用 1-3 句话说清楚：做什么、给谁用、解决什么问题？"
+          type: text
+          required: true
+          suggested: "一句话价值主张 + 目标用户的痛点"
+        - id: target-users
+          question: "目标用户是谁？他们最核心的诉求是什么？"
+          type: text
+          required: true
+          suggested: "单一人群 + 该人群的一个核心诉求"
+        - id: mvp-features
+          question: "MVP 必须有的功能清单（每项标 P0/P1）？"
+          type: text
+          required: true
+          suggested: "3-5 项 P0，控制在能 1-2 周做完的体量"
+        - id: out-of-scope
+          question: "明确不做什么？（防范围蔓延）"
+          type: text
+          required: true
+          suggested: "至少列 3 项：账户体系/推送/社交/多语言 等常见项"
+        - id: tech-constraints
+          question: "技术约束？（平台/存储/账户体系/必须遵循的规范）"
+          type: text
+          required: true
+          suggested: "Flutter + 纯本地存储 + 无登录 + 遵循 flutter-dev-playbook"
+      write_answers_to: pipeline/projects/{{project}}/.brief-answers.md
+      answer_section: "原始输入"
+
+  - id: draft-brief
+    action: invoke_agent
+    description: 把人工原始输入整理为结构化简报（模板全字段）
+    params:
+      agent: planner
+      agent_definition: pipeline/agents/planner.md
+      output_path: pipeline/projects/{{project}}/00-project-brief.md
+      output_manifest: pipeline/manifests/project_brief.manifest.yaml
+      context:
+        task: "把 .brief-answers.md 的原始输入整理成符合模板的完整简报"
+        must_read:
+          - pipeline/projects/{{project}}/.brief-answers.md
+          - pipeline/templates/00-project-brief.template.md
+        focus:
+          - "元数据/目标用户/功能清单/明确不做/技术约束/待澄清/决策记录 七个章节必须齐备"
+          - "功能清单每项必须有优先级与验收要点"
+          - "明确不做至少 3 项"
+          - "不得编造用户未提供的产品定位；不确定项放入『待澄清』"
+      timeout_sec: 600
+    on_fail: retry
+
+  - id: check-clarity
+    action: invoke_agent
+    description: 让规划 Agent 检查简报是否有歧义，产出待澄清问题
+    params:
+      agent: planner
+      agent_definition: pipeline/agents/planner.md
+      output_path: pipeline/projects/{{project}}/.brief-clarity.md
+      output_manifest: pipeline/manifests/_freeform.manifest.yaml
+      context:
+        task: "检查简报是否存在需要澄清的歧义；每个问题必须给出建议值"
+        must_read:
+          - pipeline/projects/{{project}}/00-project-brief.md
+        focus: ["口径歧义", "功能边界", "验收可测性"]
+        constraints:
+          - "每个问题必须把『建议值』放在问题首句"
+          - "最多提 5 个问题，只提真正影响实现的"
+      timeout_sec: 300
+    on_fail: continue
+
+  - id: clarify
+    action: collect_human_input
+    description: 逐条澄清（P0 教训：建议值放首句，避免用户复述问题）
+    params:
+      questions_source: pipeline/projects/{{project}}/.brief-clarity.md
+      allow_empty: true
+      write_answers_to: pipeline/projects/{{project}}/00-project-brief.md
+      answer_section: "已澄清记录"
+  - id: validate-brief
+    action: validate_deliverable
+    description: 机械校验简报必填章节与字段
+    params:
+      deliverable: project_brief
+      manifest: pipeline/manifests/project_brief.manifest.yaml
+      fail_on: any
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 0 · 立项确认"
+      actions: [approve, revise]
+      review_package:
+        - pipeline/projects/{{project}}/00-project-brief.md
+      require_comment_on: [revise]
+
+gate:
+  enabled: true
+  title: "关卡 0 · 立项确认"
+  actions: [approve, revise]
+  review_package:
+    - pipeline/projects/{{project}}/00-project-brief.md
+  require_comment_on: [revise]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 01-planning
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: draft
+  # 简报是源头，无更早阶段可退
+
+dod:
+  - "pipeline validate {{project}} --deliverable=project_brief 通过"
+  - "简报『待澄清』区块为空或已全部移入『已澄清记录』"
+  - "决策日志至少 1 条"

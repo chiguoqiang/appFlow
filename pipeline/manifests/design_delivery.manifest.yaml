@@ -1,0 +1,56 @@
+manifest: design_delivery
+deliverable: design_delivery
+default_path: pipeline/projects/{{project}}/03-design-delivery.md
+description: 设计三件套校验（P0 教训：node ID/截图允许 pending，但必须登记回填）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+
+  - id: node-ids
+    title: Figma 链接与 node ID
+    type: table
+    required: true
+    columns: [页面 ID, 页面名, Node ID, MCP 读回验证]
+    min_rows: 1
+    row_id_pattern: "PG-\\d+"
+    # Node ID 允许 pending，但（见 rules）必须同时存在回填登记
+
+  - id: tokens-json
+    title: Design Tokens
+    type: code_block
+    required: true
+    language: json
+    description: 必须是合法 JSON，且与需求书 token 表逐值一致
+
+  - id: screenshots
+    title: 页面截图
+    type: table
+    required: true
+    columns: [页面 ID, 截图路径, 与最终稿一致]
+    min_rows: 1
+
+  - id: layout-notes
+    title: 布局关键标注
+    type: table
+    required: true
+    columns: [页面, 约束, 值]
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # pending 允许，但必须显式登记（由 DR-10 交叉校验 backfill registry）
+  allow_pending: true
+  pending_must_have_backfill: true
+  # tokens JSON 必须可解析
+  validate_json_blocks: true

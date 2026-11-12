@@ -1,0 +1,82 @@
+sop: intake-routing
+stage: intake
+name: 需求分流（新项目 / 新需求）
+flow: new_requirement
+owner_agent: planner
+description: >
+  决定一条输入走哪条流程。技术部 80% 的工作是"改现有系统"而非"从零建新项目"，
+  这条分流是平台能否被真实使用的关键。
+depends_on: []
+
+inputs: []
+
+output:
+  deliverable: intake_routing
+  path: pipeline/projects/{{project}}/intake-routing.md
+  manifest: pipeline/manifests/_freeform.manifest.yaml
+
+steps:
+  - id: classify
+    action: invoke_agent
+    description: 判断是否属于已有项目、改动范围、是否需要新页面
+    params:
+      agent: planner
+      agent_definition: pipeline/agents/planner.md
+      output_path: pipeline/projects/{{project}}/intake-routing.md
+      output_manifest: pipeline/manifests/_freeform.manifest.yaml
+      context:
+        task: "对输入做分流判断，输出 flow / target_project / needs_new_pages / 影响交付物清单"
+        must_read:
+          - pipeline/projects/{{project}}/00-requirement.md
+          - pipeline/projects/{{project}}/pipeline-state.json
+        focus:
+          - "flow: new_project（从零）| new_requirement（增量）"
+          - "target_project: 增量时必填，必须指向已存在的项目"
+          - "needs_new_pages: 是否需要新页面（false 时增量流程跳过 design 阶段）"
+          - "affected_deliverables: 本次改动会触及哪些交付物（决定 stale 传播范围）"
+          - "risk_level: low（纯逻辑/文案）| medium（交互变化）| high（数据模型变化）"
+        constraints:
+          - "判断不确定时倾向 new_project（宁可多规划，不可漏影响面）"
+      timeout_sec: 600
+    on_fail: retry
+
+  - id: validate-routing
+    action: validate_deliverable
+    params:
+      deliverable: intake_routing
+      manifest: pipeline/manifests/_freeform.manifest.yaml
+      fail_on: missing_field
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 · 分流确认"
+      actions: [approve, revise]
+      review_package:
+        - pipeline/projects/{{project}}/intake-routing.md
+      require_comment_on: [revise]
+
+gate:
+  enabled: true
+  title: "关卡 · 分流确认"
+  actions: [approve, revise]
+  review_package:
+    - pipeline/projects/{{project}}/intake-routing.md
+  require_comment_on: [revise]
+
+on_approve:
+  deliverable_status: approved
+  # 由调度器依据 intake-routing.md 的 flow 字段选择后续 SOP
+  next_sop: "__ROUTE__"
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: draft
+
+dod:
+  - "intake-routing.md 含 flow / target_project / needs_new_pages / affected_deliverables 四个字段"
+  - "flow=new_requirement 时 target_project 指向的目录存在"

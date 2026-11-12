@@ -1,0 +1,114 @@
+sop: 13-testing-regression
+stage: testing_regression
+name: 增量测试（新功能 + 回归）
+flow: new_requirement
+owner_agent: tester
+description: >
+  增量测试必须两件事一起做：验证新功能 + 回归受影响范围。
+  回归范围来自增量 PRD 的"受影响既有功能"清单，不得主观缩小。
+depends_on: [12b-development-delta]
+
+inputs:
+  - path: pipeline/projects/{{project}}/11-prd-delta.md
+    deliverable: prd_delta
+  - path: pipeline/projects/{{project}}/13-dev-delta.md
+    deliverable: dev_report_delta
+  - path: pipeline/projects/{{target_project}}/05-test-report.md
+    deliverable: test_report
+    description: 既有测试报告（回归基线）
+
+output:
+  deliverable: test_report_delta
+  path: pipeline/projects/{{project}}/14-test-delta.md
+  manifest: pipeline/manifests/test_report_delta.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/11-prd-delta.md
+          deliverable: prd_delta
+          min_status: approved
+        - path: pipeline/projects/{{project}}/13-dev-delta.md
+          deliverable: dev_report_delta
+          min_status: approved
+      forbidden_stale: [prd_delta, dev_report_delta]
+
+  - id: test-delta
+    action: invoke_agent
+    description: 新功能用例（独立设计）+ 回归用例（依据受影响清单）+ 执行
+    params:
+      agent: tester
+      agent_definition: pipeline/agents/tester.md
+      output_path: pipeline/projects/{{project}}/14-test-delta.md
+      output_manifest: pipeline/manifests/test_report_delta.manifest.yaml
+      context:
+        task: "验证增量功能并回归受影响范围"
+        must_read:
+          - pipeline/projects/{{project}}/11-prd-delta.md
+          - pipeline/projects/{{project}}/13-dev-delta.md
+          - pipeline/projects/{{target_project}}/05-test-report.md
+        focus:
+          - "新功能用例必须独立设计，不复用开发用例"
+          - "回归范围必须覆盖增量 PRD『受影响既有功能』清单的每一项，不得缩小"
+          - "回归结论必须与既有测试报告的用例建立映射（哪些用例重跑、结果如何）"
+          - "必须验证无回归副作用：既有功能行为与改动前一致"
+          - "边界用例必覆盖：数据迁移、旧数据兼容、边界值"
+        constraints:
+          - "只记录缺陷，不修改业务代码"
+          - "回归项若确实无需重跑，必须逐条给出理由"
+      timeout_sec: 1800
+    on_fail: retry
+
+  - id: quality-gate-delta
+    action: check_rules
+    description: 增量质量门：新功能无高严重度缺陷 + 回归全部通过
+    params:
+      ruleset: pipeline/gates/quality-gate.rules.yaml
+      target: pipeline/projects/{{project}}/14-test-delta.md
+      rule_ids: [QG-01, QG-02, QG-05]
+
+  - id: validate-test-delta
+    action: validate_deliverable
+    params:
+      deliverable: test_report_delta
+      manifest: pipeline/manifests/test_report_delta.manifest.yaml
+      fail_on: any
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "增量关卡 4 · 增量质量门"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/14-test-delta.md
+      require_comment_on: [approve, revise, reject]
+
+gate:
+  enabled: true
+  title: "增量关卡 4 · 增量质量门"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/14-test-delta.md
+  require_comment_on: [approve, revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 14-acceptance-delta
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [acceptance_report_delta]
+  reopen_sop: 12b-development-delta
+
+dod:
+  - "pipeline validate {{project}} --deliverable=test_report_delta 通过"
+  - "QG-01/02/05 通过"
+  - "回归项覆盖『受影响既有功能』清单 100%，或有逐条理由说明为何不需重跑"
+  - "回归结果与既有用例有映射关系"

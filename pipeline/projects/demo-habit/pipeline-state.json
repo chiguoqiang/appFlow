@@ -1,0 +1,443 @@
+{
+  "project": {
+    "codename": "demo-habit",
+    "platform": "flutter",
+    "created_at": "2026-11-11T00:00:00+08:00",
+    "app_repo_path": "demo-app/"
+  },
+  "current_stage": "done",
+  "stages": [
+    {
+      "id": "brief",
+      "name": "立项简报",
+      "owner_agent": "user",
+      "status": "approved",
+      "review_rounds": 1,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise"
+        ],
+        "review_package_paths": [
+          "pipeline/projects/demo-habit/00-project-brief.md"
+        ],
+        "resolved_at": "2026-11-11T00:00:00+08:00"
+      }
+    },
+    {
+      "id": "planning",
+      "name": "规划",
+      "owner_agent": "planner",
+      "status": "approved",
+      "review_rounds": 1,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [
+          "pipeline/projects/demo-habit/01-prd.md"
+        ],
+        "resolved_at": "2026-11-11T00:00:00+08:00"
+      }
+    },
+    {
+      "id": "design",
+      "name": "设计",
+      "owner_agent": "designer",
+      "status": "approved",
+      "review_rounds": 1,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [
+          "pipeline/projects/demo-habit/02-design-brief.md",
+          "pipeline/projects/demo-habit/03-design-delivery.md"
+        ],
+        "resolved_at": "2026-11-12T00:00:00+08:00"
+      }
+    },
+    {
+      "id": "development",
+      "name": "开发",
+      "owner_agent": "developer",
+      "status": "approved",
+      "review_rounds": 1,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [
+          "pipeline/projects/demo-habit/04-dev-report.md",
+          "demo-app/",
+          "pipeline/projects/demo-habit/test/screenshots/PG-01-runtime.png"
+        ],
+        "resolved_at": "2026-11-12T00:00:00+08:00"
+      }
+    },
+    {
+      "id": "testing",
+      "name": "测试",
+      "owner_agent": "tester",
+      "status": "approved",
+      "review_rounds": 1,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [
+          "pipeline/projects/demo-habit/05-test-report.md",
+          "pipeline/projects/demo-habit/test/screenshots/PG-01-runtime.png"
+        ],
+        "resolved_at": "2026-11-12T00:00:00+08:00"
+      }
+    },
+    {
+      "id": "acceptance",
+      "name": "验收",
+      "owner_agent": "acceptor",
+      "status": "approved",
+      "review_rounds": 1,
+      "gate": {
+        "actions": [
+          "approve",
+          "revise",
+          "reject"
+        ],
+        "review_package_paths": [
+          "pipeline/projects/demo-habit/06-acceptance-report.md",
+          "pipeline/projects/demo-habit/pipeline-state.json"
+        ],
+        "resolved_at": "2026-11-12T00:00:00+08:00"
+      }
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "project_brief",
+      "path": "pipeline/projects/demo-habit/00-project-brief.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "user",
+      "stale_reason": null
+    },
+    {
+      "id": "prd",
+      "path": "pipeline/projects/demo-habit/01-prd.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "planner",
+      "stale_reason": null
+    },
+    {
+      "id": "design_brief",
+      "path": "pipeline/projects/demo-habit/02-design-brief.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "designer",
+      "stale_reason": null
+    },
+    {
+      "id": "design_delivery",
+      "path": "pipeline/projects/demo-habit/03-design-delivery.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "designer",
+      "stale_reason": null
+    },
+    {
+      "id": "dev_report",
+      "path": "pipeline/projects/demo-habit/04-dev-report.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "developer",
+      "stale_reason": null
+    },
+    {
+      "id": "test_report",
+      "path": "pipeline/projects/demo-habit/05-test-report.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "tester",
+      "stale_reason": null
+    },
+    {
+      "id": "acceptance_report",
+      "path": "pipeline/projects/demo-habit/06-acceptance-report.md",
+      "version": 1,
+      "status": "approved",
+      "produced_by": "acceptor",
+      "stale_reason": null
+    }
+  ],
+  "history": [
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "stage_started",
+      "stage": "brief",
+      "actor": "user",
+      "detail": "立项：习惯打卡 App 简报 v1 提交评审",
+      "deliverable_versions": {
+        "project_brief": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "approved",
+      "stage": "brief",
+      "actor": "user",
+      "detail": "关卡 0 通过：N∈1-7、中断清零；简报状态 confirmed",
+      "deliverable_versions": {
+        "project_brief": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "stage_started",
+      "stage": "planning",
+      "actor": "planner",
+      "detail": "规划 Agent 开始执行",
+      "deliverable_versions": {
+        "project_brief": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "deliverable_produced",
+      "stage": "planning",
+      "actor": "planner",
+      "detail": "PRD v1 产出，提交关卡 1 评审",
+      "deliverable_versions": {
+        "project_brief": 1,
+        "prd": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "review_submitted",
+      "stage": "planning",
+      "actor": "planner",
+      "detail": "评审包：PRD v1（统计定义 5 项决策待确认）",
+      "deliverable_versions": {
+        "prd": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "approved",
+      "stage": "planning",
+      "actor": "user",
+      "detail": "关卡 1 通过：统计口径 5 项决策确认；解锁设计阶段",
+      "deliverable_versions": {
+        "prd": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "stage_started",
+      "stage": "design",
+      "actor": "designer",
+      "detail": "设计 Agent 开始执行：先产出设计需求书",
+      "deliverable_versions": {
+        "prd": 1
+      }
+    },
+    {
+      "ts": "2026-11-11T00:00:00+08:00",
+      "type": "deliverable_produced",
+      "stage": "design",
+      "actor": "designer",
+      "detail": "设计需求书 v1 产出（自建轻量 token 集，4 页逐页指令）；Figma 生成待人工代执行",
+      "deliverable_versions": {
+        "prd": 1,
+        "design_brief": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "deliverable_produced",
+      "stage": "design",
+      "actor": "designer",
+      "detail": "设计交付物 v1（降级）：tokens JSON 以需求书为权威可消费；node ID/截图 pending（Figma MCP OAuth 令牌过期，读回校验待补）",
+      "deliverable_versions": {
+        "prd": 1,
+        "design_brief": 1,
+        "design_delivery": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "review_submitted",
+      "stage": "design",
+      "actor": "designer",
+      "detail": "关卡 2 评审包（降级版）：需求书 v1 + 交付物 v1，pending 项纳入追踪",
+      "deliverable_versions": {
+        "design_brief": 1,
+        "design_delivery": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "approved",
+      "stage": "design",
+      "actor": "user",
+      "detail": "关卡 2 通过（降级版）：tokens 契约生效，node ID/截图 pending 追踪；解锁开发阶段",
+      "deliverable_versions": {
+        "design_brief": 1,
+        "design_delivery": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "stage_started",
+      "stage": "development",
+      "actor": "developer",
+      "detail": "开发 Agent 开始执行：T-01 工程初始化",
+      "deliverable_versions": {
+        "prd": 1,
+        "design_brief": 1,
+        "design_delivery": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "deliverable_produced",
+      "stage": "development",
+      "actor": "developer",
+      "detail": "T-01~T-11 全部完成：analyze 零告警、65 项测试全绿、模拟器启动成功（Xcode build 42.6s）",
+      "deliverable_versions": {
+        "dev_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "review_submitted",
+      "stage": "development",
+      "actor": "developer",
+      "detail": "关卡 3 评审包：自测报告 v1 + 代码 + PG-01 运行时截图",
+      "deliverable_versions": {
+        "dev_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "approved",
+      "stage": "development",
+      "actor": "user",
+      "detail": "关卡 3 通过：65 项测试全绿 + 模拟器冒烟成功；解锁测试阶段",
+      "deliverable_versions": {
+        "dev_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "stage_started",
+      "stage": "testing",
+      "actor": "tester",
+      "detail": "测试 Agent 开始执行：独立用例设计 + 执行 + UI 核对",
+      "deliverable_versions": {
+        "dev_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "deliverable_produced",
+      "stage": "testing",
+      "actor": "tester",
+      "detail": "测试报告 v1：17 用例（13 通过/4 失败）；发现 BUG-01(中) BUG-02(高) BUG-03(低) BUG-04(低)；判定不通过",
+      "deliverable_versions": {
+        "dev_report": 1,
+        "test_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "review_submitted",
+      "stage": "testing",
+      "actor": "tester",
+      "detail": "关卡 4 评审包：测试报告 v1 + PG-01 运行时截图",
+      "deliverable_versions": {
+        "test_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "approved",
+      "stage": "testing",
+      "actor": "user",
+      "detail": "关卡 4 通过（用户决定，覆盖测试 Agent「不通过」建议）：4 个缺陷 BUG-01~04 全部带入验收遗留清单",
+      "deliverable_versions": {
+        "test_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "stage_started",
+      "stage": "acceptance",
+      "actor": "acceptor",
+      "detail": "验收 Agent 开始执行：全流程证据链核对 + 决策轨迹回溯 + 流水线复盘",
+      "deliverable_versions": {
+        "project_brief": 1,
+        "prd": 1,
+        "design_brief": 1,
+        "design_delivery": 1,
+        "dev_report": 1,
+        "test_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "deliverable_produced",
+      "stage": "acceptance",
+      "actor": "acceptor",
+      "detail": "验收报告 v1：有条件通过；MVP 6 项 P0 中 5 项完整达成；遗留 L-01~L-08",
+      "deliverable_versions": {
+        "acceptance_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "review_submitted",
+      "stage": "acceptance",
+      "actor": "acceptor",
+      "detail": "关卡 5 最终评审包：验收报告 v1 + 状态机",
+      "deliverable_versions": {
+        "acceptance_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "approved",
+      "stage": "acceptance",
+      "actor": "user",
+      "detail": "关卡 5 通过：项目正式交付（有条件通过，8 项遗留进入 P1 backlog）",
+      "deliverable_versions": {
+        "acceptance_report": 1
+      }
+    },
+    {
+      "ts": "2026-11-12T00:00:00+08:00",
+      "type": "stage_completed",
+      "stage": "acceptance",
+      "actor": "system",
+      "detail": "流水线全流程走通：立项→规划→设计→开发→测试→验收，P0 收官",
+      "deliverable_versions": {
+        "project_brief": 1,
+        "prd": 1,
+        "design_brief": 1,
+        "design_delivery": 1,
+        "dev_report": 1,
+        "test_report": 1,
+        "acceptance_report": 1
+      }
+    }
+  ]
+}

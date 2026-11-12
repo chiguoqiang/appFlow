@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sop.schema.json",
+  "title": "SOP 定义（标准作业程序）",
+  "description": "调度器唯一的流程权威来源。SOP 是可版本化的数据，不是代码。动作类型为封闭集合（见 _actions.md），新增动作类型必须同时修改本 schema 并补测试。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["sop", "stage", "name", "owner_agent", "steps"],
+  "properties": {
+    "sop": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "SOP 唯一标识，与文件名一致（不含扩展名）。"
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "brief",
+        "planning",
+        "design",
+        "development",
+        "testing",
+        "acceptance",
+        "intake",
+        "planning_delta",
+        "development_delta",
+        "testing_regression",
+        "acceptance_delta"
+      ],
+      "description": "归属阶段。delta 后缀表示增量流程阶段。"
+    },
+    "name": { "type": "string", "description": "中文名称，面向人类阅读。" },
+    "flow": {
+      "type": "string",
+      "enum": ["new_project", "new_requirement"],
+      "description": "所属流程类型。"
+    },
+    "owner_agent": {
+      "type": "string",
+      "enum": ["user", "planner", "designer", "developer", "tester", "acceptor"],
+      "description": "本阶段执行主体。user 表示由人完成输入。"
+    },
+    "description": { "type": "string" },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "前置 SOP id 列表；未全部 approved 时本 SOP 不可运行。"
+    },
+    "inputs": {
+      "type": "array",
+      "description": "必须存在的输入文件（相对项目根）。支持 {{project}} 占位。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string" },
+          "deliverable": { "type": "string", "description": "若为交付物则填 id，便于版本校验。" },
+          "required": { "type": "boolean", "default": true },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "本 SOP 产出的交付物。",
+      "additionalProperties": false,
+      "required": ["deliverable", "path"],
+      "properties": {
+        "deliverable": { "type": "string" },
+        "path": { "type": "string" },
+        "manifest": { "type": "string", "description": "校验规则路径，默认 manifests/<deliverable>.manifest.yaml" }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 12,
+      "description": "统一动作序列；调度器只认这些动作类型。",
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "gate": { "$ref": "#/$defs/gate" },
+    "on_approve": { "$ref": "#/$defs/transition" },
+    "on_revise": { "$ref": "#/$defs/transition" },
+    "on_reject": { "$ref": "#/$defs/transition" },
+    "dod": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "完成定义。每条必须机器可检查（命令或 manifest 字段），不允许『看起来不错』这类主观项。"
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "action"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "action": {
+          "type": "string",
+          "enum": [
+            "validate_inputs",
+            "invoke_agent",
+            "validate_deliverable",
+            "check_rules",
+            "collect_human_input",
+            "human_gate",
+            "register_backfill"
+          ]
+        },
+        "description": { "type": "string" },
+        "skip_if": { "type": "string", "description": "条件表达式（简化的比较表达式），为真时跳过本步。" },
+        "params": { "type": "object", "description": "动作参数，结构由 action 类型决定，见 _actions.md。" },
+        "on_fail": {
+          "type": "string",
+          "enum": ["abort", "degrade", "retry", "continue"],
+          "default": "abort",
+          "description": "失败策略。degrade 必须同时声明 backfill。"
+        },
+        "backfill": {
+          "type": "object",
+          "description": "on_fail=degrade 时必填：登记降级回填任务。",
+          "additionalProperties": false,
+          "required": ["item", "owner", "close_condition"],
+          "properties": {
+            "item": { "type": "string" },
+            "owner": { "type": "string" },
+            "close_condition": { "type": "string" },
+            "blocks_acceptance": {
+              "type": "boolean",
+              "default": false,
+              "description": "true 时该回填任务未关闭会导致验收判定上限为 ⚠️"
+            }
+          }
+        }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "actions"],
+      "properties": {
+        "enabled": { "type": "boolean", "description": "false 时该阶段不停（仅限内部无交付物的辅助阶段）。" },
+        "title": { "type": "string" },
+        "actions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "enum": ["approve", "revise", "reject"] }
+        },
+        "review_package": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "评审包文件列表（相对项目根）。"
+        },
+        "review_package_extra": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "额外评审材料（截图目录、PR 链接占位等）。"
+        },
+        "require_comment_on": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["approve", "revise", "reject"] },
+          "description": "这些动作必须附意见。"
+        }
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "deliverable_status": {
+          "type": "string",
+          "enum": ["approved", "in-review", "stale", "draft"]
+        },
+        "next_sop": {
+          "type": ["string", "null"],
+          "description": "下一 SOP id；null 表示流程终点。__ROUTE__ / __IF_...__ 为调度器保留指令。"
+        },
+        "propagate_stale": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "将哪些交付物标记为 stale（打回时自动传播）。"
+        },
+        "reopen_sop": { "type": "string", "description": "打回时重开的 SOP id。" },
+        "increment_version": { "type": "boolean", "default": false },
+        "require_structured_opinion": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

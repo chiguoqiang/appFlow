@@ -1,0 +1,84 @@
+ruleset: dod
+name: 工程完成定义（DoD）
+description: >
+  每条都必须机器可执行（跑命令、查文件、grep），不允许"看起来完成"这类主观项。
+  P0 教训：DoD 写在文档里但不检查 = 不存在。
+
+target_type: project
+
+rules:
+  - id: DOD-01
+    name: 静态分析零告警
+    severity: blocker
+    check:
+      type: command
+      run: "flutter analyze"
+      cwd: "{{project}}"
+      pass_when:
+        stdout_contains: "No issues found"
+      timeout_sec: 300
+    message: "flutter analyze 未通过（必须零 issue，info 也算）"
+
+  - id: DOD-02
+    name: 全部测试通过
+    severity: blocker
+    check:
+      type: command
+      run: "flutter test"
+      cwd: "{{project}}"
+      pass_when:
+        stdout_contains: "All tests passed"
+        exit_code: 0
+      timeout_sec: 900
+    message: "flutter test 未全绿"
+
+  - id: DOD-03
+    name: 代码格式统一
+    severity: minor
+    check:
+      type: command
+      run: "dart format --output=none --set-exit-if-changed lib test"
+      cwd: "{{project}}"
+      pass_when:
+        exit_code: 0
+    message: "存在未格式化文件"
+
+  - id: DOD-04
+    name: 无硬编码设计值
+    severity: major
+    check:
+      type: command
+      run: "grep -rn --include=*.dart -E 'Color\\(0x' lib | grep -v '/theme/' || true"
+      cwd: "{{project}}"
+      pass_when:
+        stdout_empty: true
+    message: "lib 下存在 theme/ 之外的硬编码颜色（P0 教训：tokens 应统一映射）"
+
+  - id: DOD-05
+    name: 每个页面至少 1 个组件测试
+    severity: major
+    check:
+      type: file_heuristic
+      rule: "for each lib/pages/*_page.dart, there exists test/widget/*_page_test.dart"
+      cwd: "{{project}}"
+    message: "存在页面无对应组件测试（P0 教训：先写组件测试能提前抓渲染层缺陷）"
+
+  - id: DOD-06
+    name: 增量改动范围可控
+    severity: major
+    check:
+      type: diff_scope
+      rule: "changed files must all be referenced in 改动文件清单"
+    message: "存在未在报告中声明的改动文件（隐形改动不可回归）"
+
+  - id: DOD-07
+    name: 规范体系已装配
+    severity: major
+    check:
+      type: file_exists
+      paths:
+        - "{{project}}/AGENTS.md"
+        - "{{project}}/.github/skills/flutter-dev-playbook/rules"
+    message: "项目内缺少 AGENTS.md 或 rules/（P0 最大断点：声明依赖 ≠ 装配依赖）"
+    autofix:
+      script: pipeline/scripts/sync-spec.sh

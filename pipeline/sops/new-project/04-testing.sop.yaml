@@ -1,0 +1,141 @@
+sop: 04-testing
+stage: testing
+name: 测试
+flow: new_project
+owner_agent: tester
+description: >
+  独立验证（不复用开发用例）+ UI 截图比对 + 质量门。
+  P0 教训：独立用例命中率 ~24%，复用开发用例则趋近 0；
+  质量门必须有硬规则，不能靠 Agent 主观裁定。
+depends_on: [03-development]
+
+inputs:
+  - path: pipeline/projects/{{project}}/01-prd.md
+    deliverable: prd
+  - path: pipeline/projects/{{project}}/03-design-delivery.md
+    deliverable: design_delivery
+  - path: pipeline/projects/{{project}}/04-dev-report.md
+    deliverable: dev_report
+
+output:
+  deliverable: test_report
+  path: pipeline/projects/{{project}}/05-test-report.md
+  manifest: pipeline/manifests/test_report.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/01-prd.md
+          deliverable: prd
+          min_status: approved
+        - path: pipeline/projects/{{project}}/04-dev-report.md
+          deliverable: dev_report
+          min_status: approved
+      forbidden_stale: [prd, design_delivery, dev_report]
+
+  - id: capture-screenshots
+    action: check_rules
+    description: 截图工具链检查（集成测试配置 + golden master 可用性）
+    params:
+      ruleset: pipeline/gates/asset.rules.yaml
+      target: "{{project}}"
+      rule_ids: [AR-04, AR-05]
+    on_fail: degrade
+    backfill:
+      item: "运行时截图或 golden master 缺失，UI 快照比对降级为人工核对"
+      owner: tester
+      close_condition: "integration_test 四页截图脚本可跑 + golden master 齐备，UI 比对自动化"
+
+  - id: design-independent-cases
+    action: invoke_agent
+    description: 独立设计用例（禁止直接复用开发用例）+ 执行 + 记录缺陷
+    params:
+      agent: tester
+      agent_definition: pipeline/agents/tester.md
+      output_path: pipeline/projects/{{project}}/05-test-report.md
+      output_manifest: pipeline/manifests/test_report.manifest.yaml
+      context:
+        task: "从 PRD 验收标准与自测报告『遗留关注点』出发，独立设计并执行用例"
+        must_read:
+          - pipeline/projects/{{project}}/01-prd.md
+          - pipeline/projects/{{project}}/04-dev-report.md
+          - pipeline/projects/{{project}}/03-design-delivery.md
+          - pipeline/agents/tester.md
+        focus:
+          - "禁止复用开发用例；每条用例必须关联 US-x / F-x / 自测关注点"
+          - "专攻开发声称『不可能发生』的场景（P0 最有效取证策略）"
+          - "边界必须覆盖：空数据、超长输入、跨天/时间边界、重复操作"
+          - "UI 对比必须附截图路径；判定 ⚠️ 时写明偏差内容与理由"
+          - "只记录缺陷，不修改业务代码"
+        constraints:
+          - "不得把失败用例标记为『可接受』而不记缺陷"
+      timeout_sec: 1800
+    on_fail: retry
+
+  - id: quality-gate
+    action: check_rules
+    description: 质量门硬规则（高严重度未修 = 自动不通过）
+    params:
+      ruleset: pipeline/gates/quality-gate.rules.yaml
+      target: pipeline/projects/{{project}}/05-test-report.md
+      rule_ids: [QG-01, QG-02, QG-03, QG-04]
+
+  - id: validate-test-report
+    action: validate_deliverable
+    params:
+      deliverable: test_report
+      manifest: pipeline/manifests/test_report.manifest.yaml
+      fail_on: any
+
+  - id: register-test-backfill
+    action: register_backfill
+    description: 汇总本阶段降级项（截图工具链 / golden master 缺失）
+    params:
+      item: "测试阶段降级项汇总（运行时截图 / golden master 基线）"
+      owner: tester
+      close_condition: "integration_test 四页截图可跑 + golden master 齐备，UI 比对自动化"
+      blocks_acceptance: true
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 4 · 质量门"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/05-test-report.md
+      review_package_extra:
+        - "缺陷证据截图 / 失败用例输出"
+      require_comment_on: [approve, revise, reject]
+      # 注意：本关卡 approve 必须附意见（若质量门判 fail 而人选择放行，
+      # 必须留下书面理由，写入验收报告遗留清单）
+
+gate:
+  enabled: true
+  title: "关卡 4 · 质量门"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/05-test-report.md
+  # P0 教训：质量门判 fail 时若人仍放行，必须留书面理由
+  require_comment_on: [approve, revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 05-acceptance
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [acceptance_report]
+  reopen_sop: 03-development
+
+dod:
+  - "pipeline validate {{project}} --deliverable=test_report 通过"
+  - "QG-01..QG-04 全部通过（或人工放行时留书面理由）"
+  - "至少 1 条独立设计的用例证明未复用开发用例"
+  - "缺陷清单每条含严重度/复现步骤/关联用例"

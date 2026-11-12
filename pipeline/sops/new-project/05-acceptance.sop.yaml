@@ -1,0 +1,139 @@
+sop: 05-acceptance
+stage: acceptance
+name: 验收
+flow: new_project
+owner_agent: acceptor
+description: >
+  汇总全流程证据链，逐项核对简报原始要求，给出可执行判定。
+  全程只读：不修改任何上游交付物，只汇总、核对、判定。
+depends_on: [04-testing]
+
+inputs:
+  - path: pipeline/projects/{{project}}/00-project-brief.md
+    deliverable: project_brief
+    description: 验收基准源头（用户最初意图）
+  - path: pipeline/projects/{{project}}/01-prd.md
+    deliverable: prd
+  - path: pipeline/projects/{{project}}/03-design-delivery.md
+    deliverable: design_delivery
+  - path: pipeline/projects/{{project}}/04-dev-report.md
+    deliverable: dev_report
+  - path: pipeline/projects/{{project}}/05-test-report.md
+    deliverable: test_report
+
+output:
+  deliverable: acceptance_report
+  path: pipeline/projects/{{project}}/06-acceptance-report.md
+  manifest: pipeline/manifests/acceptance_report.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/00-project-brief.md
+          deliverable: project_brief
+          min_status: approved
+        - path: pipeline/projects/{{project}}/01-prd.md
+          deliverable: prd
+          min_status: approved
+        - path: pipeline/projects/{{project}}/04-dev-report.md
+          deliverable: dev_report
+          min_status: approved
+        - path: pipeline/projects/{{project}}/05-test-report.md
+          deliverable: test_report
+          min_status: approved
+      forbidden_stale: [project_brief, prd, design_delivery, dev_report, test_report]
+
+  - id: collect-backfills
+    action: check_rules
+    description: 汇总未关闭的回填任务（影响判定上限）
+    params:
+      ruleset: pipeline/gates/deliverable.rules.yaml
+      target: pipeline-state
+      rule_ids: [DR-08]
+
+  - id: audit
+    action: invoke_agent
+    params:
+      agent: acceptor
+      agent_definition: pipeline/agents/acceptor.md
+      output_path: pipeline/projects/{{project}}/06-acceptance-report.md
+      output_manifest: pipeline/manifests/acceptance_report.manifest.yaml
+      context:
+        task: "汇总全部交付物，做证据链核对与判定"
+        must_read:
+          - pipeline/projects/{{project}}/00-project-brief.md
+          - pipeline/projects/{{project}}/01-prd.md
+          - pipeline/projects/{{project}}/03-design-delivery.md
+          - pipeline/projects/{{project}}/04-dev-report.md
+          - pipeline/projects/{{project}}/05-test-report.md
+          - pipeline/projects/{{project}}/pipeline-state.json
+        focus:
+          - "每个判定必须指向具体证据（代码位置/用例编号/截图路径）"
+          - "以简报为最终基准，PRD/设计只是中间契约"
+          - "未达成项必须显式标 ❌ 并附原因（P0 教训：L-02 靠人工才发现的）"
+          - "高严重度未修复缺陷存在时不得判『通过』"
+          - "必须汇总决策轨迹（各交付物 Decision Log）"
+          - "必须记录流水线自身观察（断点/模板缺陷）"
+        constraints:
+          - "全程只读，不得修改上游交付物"
+      timeout_sec: 900
+    on_fail: retry
+
+  - id: validate-acceptance
+    action: validate_deliverable
+    params:
+      deliverable: acceptance_report
+      manifest: pipeline/manifests/acceptance_report.manifest.yaml
+      fail_on: any
+
+  - id: final-gate-rules
+    action: check_rules
+    description: 验收报告规则（未达成项强制 ❌、遗留清单完整、回填项披露）
+    params:
+      ruleset: pipeline/gates/deliverable.rules.yaml
+      target: pipeline/projects/{{project}}/06-acceptance-report.md
+      rule_ids: [DR-09, DR-10]
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 5 · 最终验收"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/06-acceptance-report.md
+        - pipeline/projects/{{project}}/01-prd.md
+        - pipeline/projects/{{project}}/05-test-report.md
+      review_package_extra:
+        - "全部交付物索引 + 未关闭回填任务"
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "关卡 5 · 最终验收"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/06-acceptance-report.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: null   # 流程终点
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: []
+  reopen_sop: 03-development
+
+dod:
+  - "pipeline validate {{project}} --deliverable=acceptance_report 通过"
+  - "DR-09/DR-10 通过"
+  - "MVP 功能逐项核对表齐全（简报功能 → 故事 → 实现证据 → 测试证据 → 判定）"
+  - "遗留清单每条含：问题、影响、建议处理时机"
+  - "未关闭的回填任务已在报告披露"

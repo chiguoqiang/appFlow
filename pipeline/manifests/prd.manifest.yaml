@@ -1,0 +1,105 @@
+manifest: prd
+deliverable: prd
+default_path: pipeline/projects/{{project}}/01-prd.md
+description: PRD 结构校验（P0 教训：统计口径必须成节、页面编号规范、任务可验收）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [PRD 版本, 基于简报版本, 状态]
+
+  - id: overview
+    title: 产品概述
+    type: text
+    required: true
+    min_length: 20
+
+  - id: user-stories
+    title: 用户故事
+    type: table
+    required: true
+    columns: ["#", 用户故事, 优先级, 验收标准]
+    min_rows: 1
+    row_id_pattern: "US-\\d+"
+    forbid_column_values:
+      验收标准: ["", "见上文", "待定", "TBD"]
+
+  - id: features
+    title: 功能需求
+    type: table
+    required: true
+    columns: ["#", 功能, 页面/入口, 详细描述, 数据需求, 关联故事]
+    min_rows: 1
+    row_id_pattern: "F-\\d+"
+
+  - id: pages
+    title: 页面清单
+    type: table
+    required: true
+    columns: [页面 ID, 页面名, 入口, 主要元素, 跳转关系]
+    min_rows: 1
+    row_id_pattern: "PG-\\d+"
+
+  - id: data-model
+    title: 数据模型
+    type: list
+    required: true
+    min_items: 1
+
+  - id: stats-definition
+    title: 统计口径
+    type: text
+    required: false
+    description: 若产品含任何计数/比例/时间窗，本节的等价小节必须存在（由 DR-01 强制）
+
+  - id: nfr
+    title: 非功能需求
+    type: table
+    required: true
+    columns: [类别, 要求]
+
+  - id: out-of-scope
+    title: 明确不做
+    type: list
+    required: true
+    min_items: 1
+
+  - id: tasks
+    title: 任务拆解
+    type: table
+    required: true
+    columns: ["#", 任务, 前置依赖, 验收方式, 状态]
+    min_rows: 1
+    row_id_pattern: "T-\\d+"
+    forbid_column_values:
+      验收方式: ["", "待定", "TBD", "看情况"]
+
+  - id: test-points
+    title: 测试要点
+    type: table
+    required: true
+    columns: ["#", 测试要点, 类型, 关联功能]
+    min_rows: 1
+    row_id_pattern: "TS-\\d+"
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # 每个 P0 功能至少 1 条测试要点（由 DR-03 做语义交叉检查）
+  cross_check:
+    - from: features
+      from_filter:
+        优先级: P0
+      to: test-points
+      match_column: 关联功能
+      message: "每个 P0 功能必须至少关联 1 条测试要点"

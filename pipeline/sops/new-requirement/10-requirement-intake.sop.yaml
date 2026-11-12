@@ -1,0 +1,94 @@
+sop: 10-requirement-intake
+stage: intake
+name: 新需求录入（增量）
+flow: new_requirement
+owner_agent: user
+description: >
+  增量流程的入口。区别于点：不需要重定义整个产品，只需说清"在哪个已有项目上、
+  改什么、为什么改、影响面多大"。
+depends_on: [intake-routing]
+
+inputs:
+  - path: pipeline/projects/{{project}}/intake-routing.md
+    deliverable: intake_routing
+    description: 分流结论（必须 flow=new_requirement）
+
+output:
+  deliverable: requirement_brief
+  path: pipeline/projects/{{project}}/10-requirement.md
+  manifest: pipeline/manifests/requirement_brief.manifest.yaml
+
+steps:
+  - id: capture-requirement
+    action: collect_human_input
+    params:
+      questions:
+        - id: target-project
+          question: "改动作用于哪个已有项目？（目录名）"
+          type: text
+          required: true
+          suggested: "例如 demo-habit"
+        - id: change-goal
+          question: "这个需求要达成什么业务目标？"
+          type: text
+          required: true
+          suggested: "一句话：谁在什么场景下获得什么价值"
+        - id: change-scope
+          question: "具体改什么？请列出改动点（功能/页面/数据/交互）"
+          type: text
+          required: true
+          suggested: "按『新增/修改/删除』三类列出，每类 1-3 条"
+        - id: acceptance
+          question: "怎样算做完？（可验证的验收标准）"
+          type: text
+          required: true
+          suggested: "每条验收标准必须能被一条测试用例验证"
+        - id: regression-risk
+          question: "可能影响现有哪些功能？（回归风险）"
+          type: text
+          required: true
+          suggested: "参考 intake-routing 的 affected_deliverables"
+      write_answers_to: pipeline/projects/{{project}}/10-requirement.md
+      answer_section: "1. 需求描述"
+
+  - id: validate-requirement
+    action: validate_deliverable
+    params:
+      deliverable: requirement_brief
+      manifest: pipeline/manifests/requirement_brief.manifest.yaml
+      fail_on: any
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "增量关卡 0 · 需求确认"
+      actions: [approve, revise]
+      review_package:
+        - pipeline/projects/{{project}}/10-requirement.md
+        - pipeline/projects/{{project}}/intake-routing.md
+      require_comment_on: [revise]
+
+gate:
+  enabled: true
+  title: "增量关卡 0 · 需求确认"
+  actions: [approve, revise]
+  review_package:
+    - pipeline/projects/{{project}}/10-requirement.md
+  require_comment_on: [revise]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 11-planning-delta
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: draft
+
+dod:
+  - "pipeline validate {{project}} --deliverable=requirement_brief 通过"
+  - "验收标准每条可被单条测试用例验证"
+  - "回归风险区块非空"

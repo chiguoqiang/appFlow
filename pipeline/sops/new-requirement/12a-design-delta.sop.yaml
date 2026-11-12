@@ -1,0 +1,100 @@
+sop: 12a-design-delta
+stage: design
+name: 增量设计（仅当涉及新页面/新交互）
+flow: new_requirement
+owner_agent: designer
+description: >
+  仅新增/改版页面时执行。必须复用既有 token 集与组件规范，
+  不得引入与现有设计系统冲突的新视觉语言。
+depends_on: [11-planning-delta]
+
+inputs:
+  - path: pipeline/projects/{{project}}/11-prd-delta.md
+    deliverable: prd_delta
+  - path: pipeline/projects/{{target_project}}/02-design-brief.md
+    deliverable: design_brief
+    description: 既有设计需求书（token 与规范的权威来源）
+
+output:
+  deliverable: design_delta
+  path: pipeline/projects/{{project}}/12-design-delta.md
+  manifest: pipeline/manifests/design_delta.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/11-prd-delta.md
+          deliverable: prd_delta
+          min_status: approved
+        - path: pipeline/projects/{{target_project}}/02-design-brief.md
+          deliverable: design_brief
+          min_status: approved
+      forbidden_stale: [prd_delta, design_brief]
+
+  - id: draft-design-delta
+    action: invoke_agent
+    params:
+      agent: designer
+      agent_definition: pipeline/agents/designer.md
+      output_path: pipeline/projects/{{project}}/12-design-delta.md
+      output_manifest: pipeline/manifests/design_delta.manifest.yaml
+      context:
+        task: "为本次新增/改版页面产出设计增量：复用既有 token，只定义新增部分"
+        must_read:
+          - pipeline/projects/{{project}}/11-prd-delta.md
+          - pipeline/projects/{{target_project}}/02-design-brief.md
+          - pipeline/projects/{{target_project}}/03-design-delivery.md
+        focus:
+          - "优先复用既有 token；确需新增 token 必须说明理由并追加到 token 表"
+          - "新增页面的编号延续既有序列，不复用已有 PG 编号"
+          - "必须说明与既有页面的一致性与差异点"
+          - "容量/网格类规约写成公式"
+        constraints:
+          - "不得重新定义全局设计语言（颜色/字级/圆角体系必须沿用）"
+      timeout_sec: 900
+    on_fail: retry
+
+  - id: validate-design-delta
+    action: validate_deliverable
+    params:
+      deliverable: design_delta
+      manifest: pipeline/manifests/design_delta.manifest.yaml
+      fail_on: any
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "增量关卡 2 · 设计增量评审"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/12-design-delta.md
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "增量关卡 2 · 设计增量评审"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/12-design-delta.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 12b-development-delta
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [dev_report_delta, test_report_delta, acceptance_report_delta]
+  reopen_sop: 11-planning-delta
+
+dod:
+  - "pipeline validate {{project}} --deliverable=design_delta 通过"
+  - "无新增全局 token（若新增，已在 token 表登记并说明理由）"
+  - "新增页面编号不与既有冲突"

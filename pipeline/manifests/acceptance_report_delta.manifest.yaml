@@ -1,0 +1,68 @@
+manifest: acceptance_report_delta
+deliverable: acceptance_report_delta
+default_path: pipeline/projects/{{project}}/15-acceptance-delta.md
+description: 增量验收报告校验（必须回答既有产品结论是否受影响）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [需求编号, 验收日期, 状态]
+
+  - id: verdict
+    title: 增量验收结论
+    type: text
+    required: true
+    must_contain: [通过]
+
+  - id: criteria-check
+    title: 验收标准核对
+    type: table
+    required: true
+    columns: ["#", 验收标准, 核对结果, 证据]
+    min_rows: 1
+    forbid_column_values:
+      证据: ["", "-", "无"]
+
+  - id: regression-conclusion
+    title: 回归结论
+    type: text
+    required: true
+    must_contain: [回归]
+
+  - id: existing-impact
+    title: 既有产品结论影响评估
+    type: text
+    required: true
+    must_contain: [既有]
+    description: 必须明确回答既有验收结论是否受影响
+
+  - id: leftover
+    title: 遗留问题清单
+    type: table
+    required: true
+    columns: ["#", 问题, 来源, 影响, 建议处理时机]
+
+  - id: backfill-disclosure
+    title: 未关闭回填任务
+    type: table
+    required: true
+    columns: [回填项, 责任人, 关闭条件, 是否影响判定]
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  explicit_failure_marking: true
+  forbid_pattern:
+    - pattern: "(基本完成|大致完成|差不多|应该没问题)"
+      scope: criteria-check
+      message: "验收核对禁止模糊表述"

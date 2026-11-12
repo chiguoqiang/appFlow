@@ -1,0 +1,63 @@
+manifest: design_delta
+deliverable: design_delta
+default_path: pipeline/projects/{{project}}/12-design-delta.md
+description: 设计增量校验（必须复用既有 token，不得重定义设计语言）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+
+  - id: changed-pages
+    title: 变更页面清单
+    type: table
+    required: true
+    columns: [页面 ID, 页面名, 变更类型, 说明]
+    min_rows: 1
+    row_id_pattern: "PG-\\d+"
+    description: 页面编号必须延续既有序列，不得复用
+
+  - id: token-reuse
+    title: Token 复用说明
+    type: table
+    required: true
+    columns: [用途, 引用的既有 token, 是否需新增]
+    min_rows: 1
+    forbid_column_values:
+      是否需新增: ["", "待定", "TBD"]
+
+  - id: new-tokens
+    title: 新增 Token（如有）
+    type: table
+    required: false
+    columns: [Token, 值, 新增理由]
+    description: 无新增时写"无"
+
+  - id: consistency
+    title: 与既有页面的关系
+    type: text
+    required: true
+    must_contain: [一致性]
+
+  - id: page-instructions
+    title: 变更页面设计指令
+    type: text
+    required: true
+    must_contain: [区块结构, 空态]
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  forbid_pattern:
+    - pattern: "(\\d+\\s*行\\s*[×x]\\s*\\d+\\s*列)"
+      scope: page-instructions
+      message: "容量/网格类规约必须写公式，不得写死行列数"

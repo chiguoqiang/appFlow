@@ -1,0 +1,40 @@
+# ---- Python（M2 调度器）----
+pipeline/cli/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.python-version
+
+# ---- Flutter / Dart（demo-app）----
+demo-app/build/
+demo-app/.dart_tool/
+demo-app/.flutter-plugins
+demo-app/.flutter-plugins-dependencies
+demo-app/ios/Pods/
+demo-app/ios/.symlinks/
+demo-app/ios/Flutter/Flutter.framework
+demo-app/ios/Flutter/Flutter.podspec
+demo-app/ios/Flutter/ephemeral/
+demo-app/android/.gradle/
+demo-app/android/local.properties
+demo-app/**/*.iml
+
+# 注意：lib/**/*.g.dart 是 build_runner 生成物，但项目选择**纳入版本管理**
+# （保证换机后 `flutter test` 可立即跑，无需先 build_runner）
+
+# ---- 规范体系（由 sync-spec.sh 装配，可重建）----
+# 装配源在 ~/.agents/skills/flutter-dev-playbook/rules
+# 换机后执行：./pipeline/scripts/sync-spec.sh demo-app
+demo-app/.github/skills/flutter-dev-playbook/
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/settings.json
+
+# ---- 临时文件 ----
+*.tmp
+.state-*.tmp

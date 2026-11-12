@@ -1,0 +1,147 @@
+sop: 03-development
+stage: development
+name: 开发
+flow: new_project
+owner_agent: developer
+description: >
+  按 PRD 任务拆解与设计三件套开发可运行 App。
+  P0 教训：规范体系必须装配到位（不能只在定义里声明）；
+  断言"不可能发生"必须附构造性证明；设计偏差必须显式声明。
+depends_on: [02-design]
+
+inputs:
+  - path: pipeline/projects/{{project}}/01-prd.md
+    deliverable: prd
+  - path: pipeline/projects/{{project}}/03-design-delivery.md
+    deliverable: design_delivery
+  - path: pipeline/agents/developer.md
+
+output:
+  deliverable: dev_report
+  path: pipeline/projects/{{project}}/04-dev-report.md
+  manifest: pipeline/manifests/dev_report.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/01-prd.md
+          deliverable: prd
+          min_status: approved
+        - path: pipeline/projects/{{project}}/03-design-delivery.md
+          deliverable: design_delivery
+          min_status: approved
+      forbidden_stale: [prd, design_delivery]
+
+  - id: assemble-project-spec
+    action: check_rules
+    description: 规范体系装配检查（P0 最大坑：声明依赖 ≠ 装配依赖）
+    params:
+      ruleset: pipeline/gates/asset.rules.yaml
+      target: "{{project}}"
+      rule_ids: [AR-03]
+    on_fail: degrade
+    backfill:
+      item: "项目内缺少 AGENTS.md / rules（flutter-dev-playbook 规范体系未装配）"
+      owner: developer
+      close_condition: "pipeline/scripts/sync-spec.sh 已执行，项目根 AGENTS.md 与 rules/ 存在且 dod.sh 通过"
+
+  - id: implement
+    action: invoke_agent
+    params:
+      agent: developer
+      agent_definition: pipeline/agents/developer.md
+      output_path: pipeline/projects/{{project}}/04-dev-report.md
+      output_manifest: pipeline/manifests/dev_report.manifest.yaml
+      context:
+        task: "按 PRD 任务拆解逐项开发，产出可运行 App 与自测报告"
+        must_read:
+          - pipeline/projects/{{project}}/01-prd.md
+          - pipeline/projects/{{project}}/03-design-delivery.md
+          - pipeline/agents/developer.md
+          - "{{project}}/AGENTS.md"
+        focus:
+          - "按任务拆解顺序推进，每完成一项勾选并写完成说明"
+          - "先写组件测试再接页面（P0 已验证能提前抓渲染层缺陷）"
+          - "设计偏差必须在自测报告显式声明理由，无声明的偏差视为缺陷"
+          - "任何『不可能发生』的断言必须附构造性证明，否则标注为『假设待验证』"
+          - "设计 tokens 必须映射为代码常量，禁止硬编码颜色/字号/间距"
+          - "每完成一个任务跑一次 analyze + test"
+        constraints:
+          - "不得修改 PRD / 需求书 / 三件套等上游交付物"
+          - "发现范围缺失必须上报，不得自行扩张"
+      timeout_sec: 1800
+    on_fail: retry
+
+  - id: dod-check
+    action: check_rules
+    description: 工程 DoD：analyze 零告警、test 全绿、format、无硬编码色、每页有组件测试
+    params:
+      ruleset: pipeline/gates/dod.rules.yaml
+      target: "{{project}}"
+      rule_ids: [DOD-01, DOD-02, DOD-03, DOD-04, DOD-05]
+
+  - id: validate-dev-report
+    action: validate_deliverable
+    params:
+      deliverable: dev_report
+      manifest: pipeline/manifests/dev_report.manifest.yaml
+      fail_on: any
+
+  - id: check-dev-report-rules
+    action: check_rules
+    description: 自测报告纪律检查（不可能断言须证明 / 偏差须声明）
+    params:
+      ruleset: pipeline/gates/deliverable.rules.yaml
+      target: pipeline/projects/{{project}}/04-dev-report.md
+      rule_ids: [DR-06, DR-07]
+
+  - id: register-dev-backfill
+    action: register_backfill
+    description: 汇总本阶段降级项（规范体系未装配 / 模拟器不可用 / Git 缺失等）
+    params:
+      item: "开发阶段降级项汇总（规范体系 / 运行冒烟 / PR 链接）"
+      owner: developer
+      close_condition: "sync-spec.sh 装配成功 + 模拟器冒烟通过 + Git 仓库与远端就绪"
+      blocks_acceptance: false
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 3 · 开发评审"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/04-dev-report.md
+      review_package_extra:
+        - "代码仓库 / PR 链接（若未接 Git 则标注 DEGRADED）"
+        - "模拟器运行截图或录屏"
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "关卡 3 · 开发评审"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/04-dev-report.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 04-testing
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [test_report, acceptance_report]
+  reopen_sop: 02-design
+
+dod:
+  - "pipeline validate {{project}} --deliverable=dev_report 通过"
+  - "DOD-01..DOD-05 全部通过"
+  - "DR-06/DR-07 通过"
+  - "flutter analyze 零 issue、flutter test 全绿"

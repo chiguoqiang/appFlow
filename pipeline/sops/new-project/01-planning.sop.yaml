@@ -1,0 +1,126 @@
+sop: 01-planning
+stage: planning
+name: 规划（PRD）
+flow: new_project
+owner_agent: planner
+description: >
+  把简报转化为可执行的 PRD。核心质量要求：统计/业务口径必须显式成节，
+  任务拆解必须可勾选可验收（这是开发阶段的执行清单）。
+depends_on: [00-brief]
+
+inputs:
+  - path: pipeline/projects/{{project}}/00-project-brief.md
+    deliverable: project_brief
+    description: 需求源头
+  - path: pipeline/templates/01-prd.template.md
+    description: PRD 结构契约
+
+output:
+  deliverable: prd
+  path: pipeline/projects/{{project}}/01-prd.md
+  manifest: pipeline/manifests/prd.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/00-project-brief.md
+          deliverable: project_brief
+          min_status: approved
+      forbidden_stale: [project_brief]
+
+  - id: draft-prd
+    action: invoke_agent
+    params:
+      agent: planner
+      agent_definition: pipeline/agents/planner.md
+      output_path: pipeline/projects/{{project}}/01-prd.md
+      output_manifest: pipeline/manifests/prd.manifest.yaml
+      context:
+        task: "把项目简报转化为完整 PRD"
+        must_read:
+          - pipeline/projects/{{project}}/00-project-brief.md
+          - pipeline/templates/01-prd.template.md
+          - pipeline/sops/new-project/01-planning.sop.yaml
+        focus:
+          - "用户故事必须带可量化的验收标准"
+          - "页面清单使用 PG-xx 编号，全程引用不可改名"
+          - "统计/业务口径必须独立成节（P0 教训：weeklyN 的 streak 语义歧义导致返工）"
+          - "任务拆解每项 ≤ 半天工作量、有独立验收方式、写前置依赖"
+          - "测试要点必须前置（每个功能至少 1 条）"
+          - "明确不做：继承简报，不得反向增加"
+      timeout_sec: 900
+    on_fail: retry
+
+  - id: validate-prd
+    action: validate_deliverable
+    params:
+      deliverable: prd
+      manifest: pipeline/manifests/prd.manifest.yaml
+      fail_on: any
+
+  - id: check-prd-rules
+    action: check_rules
+    description: PRD 专项检查（统计口径成节、页面编号规范、任务可验收）
+    params:
+      ruleset: pipeline/gates/deliverable.rules.yaml
+      target: pipeline/projects/{{project}}/01-prd.md
+      rule_ids: [DR-01, DR-02, DR-03]
+
+  - id: register-any-open-questions
+    action: invoke_agent
+    description: 若 PRD 仍有未定口径，让规划 Agent 汇总为待确认清单
+    params:
+      agent: planner
+      agent_definition: pipeline/agents/planner.md
+      output_path: pipeline/projects/{{project}}/.prd-open-questions.md
+      output_manifest: pipeline/manifests/_freeform.manifest.yaml
+      context:
+        task: "列出 PRD 中仍需用户拍板的口径决策（若无可写『无』）"
+        must_read:
+          - pipeline/projects/{{project}}/01-prd.md
+        focus: ["统计口径", "边界行为", "明确不做是否有遗漏"]
+      timeout_sec: 300
+    on_fail: continue
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "关卡 1 · PRD 评审"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/01-prd.md
+        - pipeline/projects/{{project}}/.prd-open-questions.md
+      review_package_extra:
+        - "返工时自动生成变更点 diff"
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "关卡 1 · PRD 评审"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/01-prd.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: 02-design
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+  # 只重跑本 SOP，且 Agent 被要求只改被质疑章节
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: [design_brief, design_delivery, dev_report, test_report, acceptance_report]
+  reopen_sop: 00-brief
+
+dod:
+  - "pipeline validate {{project}} --deliverable=prd 通过"
+  - "DR-01/DR-02/DR-03 规则全部通过"
+  - "PRD 含『统计口径』或等价小节（若产品含任何计数/比例/时间窗）"
+  - "每个 P0 功能至少 1 条测试要点"

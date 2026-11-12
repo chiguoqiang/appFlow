@@ -1,0 +1,84 @@
+manifest: test_report
+deliverable: test_report
+default_path: pipeline/projects/{{project}}/05-test-report.md
+description: 测试报告校验（P0 教训：质量门必须是硬规则，不能主观裁定）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [测试环境, 执行日期, 状态]
+
+  - id: verdict
+    title: 测试结论
+    type: table
+    required: true
+    columns: [指标, 结果]
+    must_contain: [总体判定, 用例总数]
+
+  - id: cases
+    title: 用例执行结果
+    type: table
+    required: true
+    columns: ["#", 用例, 类型, 关联, 结果]
+    min_rows: 1
+    row_id_pattern: "TC-\\d+"
+    forbid_column_values:
+      关联: ["", "-", "无", "无关联"]
+
+  - id: edge-cases
+    title: 边界用例
+    type: table
+    required: true
+    columns: ["#", 边界场景, 结果]
+    min_rows: 3
+    description: 至少 3 项（空数据/超长/跨天 等）
+
+  - id: ui-compare
+    title: UI 快照对比
+    type: table
+    required: true
+    columns: [页面, 设计稿, 运行时截图, 差异, 判定]
+    min_rows: 1
+
+  - id: defects
+    title: 缺陷清单
+    type: table
+    required: true
+    columns: ["#", 缺陷, 严重度, 复现步骤, 关联用例, 状态]
+    description: 可为"无"，但章节必须存在
+
+  - id: cross-check
+    title: 对自测报告的交叉验证
+    type: table
+    required: true
+    columns: [自测报告声明, 验证结果]
+    min_rows: 1
+    description: 必须逐条验证开发的已知问题声明
+
+  - id: focus-for-acceptor
+    title: 遗留给验收的关注点
+    type: list
+    required: true
+    min_items: 1
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # 缺陷严重度必须用标准档位（供 QG-01 求值）
+  enum_column:
+    缺陷清单:
+      严重度: [高, 中, 低]
+    用例执行结果:
+      结果: ["✅", "❌", "⏸", "✅ 通过", "❌ 失败", "⏸ 阻塞"]
+  # 用例必须有独立设计证据
+  require_independent_cases: true

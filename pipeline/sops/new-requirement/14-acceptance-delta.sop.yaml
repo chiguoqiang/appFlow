@@ -1,0 +1,119 @@
+sop: 14-acceptance-delta
+stage: acceptance_delta
+name: 增量验收
+flow: new_requirement
+owner_agent: acceptor
+description: >
+  只验收"这次改了什么 + 有没有破坏既有功能"，不重新验收整个产品。
+  但必须显式确认：既有产品的验收结论是否被本次改动影响。
+depends_on: [13-testing-regression]
+
+inputs:
+  - path: pipeline/projects/{{project}}/10-requirement.md
+    deliverable: requirement_brief
+    description: 需求源头（验收基准）
+  - path: pipeline/projects/{{project}}/11-prd-delta.md
+    deliverable: prd_delta
+  - path: pipeline/projects/{{project}}/13-dev-delta.md
+    deliverable: dev_report_delta
+  - path: pipeline/projects/{{project}}/14-test-delta.md
+    deliverable: test_report_delta
+  - path: pipeline/projects/{{target_project}}/06-acceptance-report.md
+    deliverable: acceptance_report
+    description: 既有产品验收结论
+
+output:
+  deliverable: acceptance_report_delta
+  path: pipeline/projects/{{project}}/15-acceptance-delta.md
+  manifest: pipeline/manifests/acceptance_report_delta.manifest.yaml
+
+steps:
+  - id: check-inputs
+    action: validate_inputs
+    params:
+      requires:
+        - path: pipeline/projects/{{project}}/10-requirement.md
+          deliverable: requirement_brief
+          min_status: approved
+        - path: pipeline/projects/{{project}}/11-prd-delta.md
+          deliverable: prd_delta
+          min_status: approved
+        - path: pipeline/projects/{{project}}/13-dev-delta.md
+          deliverable: dev_report_delta
+          min_status: approved
+        - path: pipeline/projects/{{project}}/14-test-delta.md
+          deliverable: test_report_delta
+          min_status: approved
+      forbidden_stale: [requirement_brief, prd_delta, dev_report_delta, test_report_delta]
+
+  - id: audit-delta
+    action: invoke_agent
+    params:
+      agent: acceptor
+      agent_definition: pipeline/agents/acceptor.md
+      output_path: pipeline/projects/{{project}}/15-acceptance-delta.md
+      output_manifest: pipeline/manifests/acceptance_report_delta.manifest.yaml
+      context:
+        task: "验收本次增量，并确认既有产品验收结论是否受影响"
+        must_read:
+          - pipeline/projects/{{project}}/10-requirement.md
+          - pipeline/projects/{{project}}/11-prd-delta.md
+          - pipeline/projects/{{project}}/13-dev-delta.md
+          - pipeline/projects/{{project}}/14-test-delta.md
+          - pipeline/projects/{{target_project}}/06-acceptance-report.md
+        focus:
+          - "需求验收标准逐条核对（以 10-requirement.md 为基准）"
+          - "必须明确回答：既有产品验收结论是否被影响？若被影响，影响哪些项"
+          - "回归结论必须引用 14-test-delta 的具体证据"
+          - "未达成项强制标 ❌ 并附原因"
+          - "遗留清单与回填任务披露"
+        constraints:
+          - "全程只读，不修改任何上游交付物"
+      timeout_sec: 900
+    on_fail: retry
+
+  - id: validate-acceptance-delta
+    action: validate_deliverable
+    params:
+      deliverable: acceptance_report_delta
+      manifest: pipeline/manifests/acceptance_report_delta.manifest.yaml
+      fail_on: any
+
+  - id: gate
+    action: human_gate
+    params:
+      title: "增量关卡 5 · 增量验收"
+      actions: [approve, revise, reject]
+      review_package:
+        - pipeline/projects/{{project}}/15-acceptance-delta.md
+        - pipeline/projects/{{project}}/11-prd-delta.md
+        - pipeline/projects/{{project}}/14-test-delta.md
+      require_comment_on: [revise, reject]
+
+gate:
+  enabled: true
+  title: "增量关卡 5 · 增量验收"
+  actions: [approve, revise, reject]
+  review_package:
+    - pipeline/projects/{{project}}/15-acceptance-delta.md
+  require_comment_on: [revise, reject]
+
+on_approve:
+  deliverable_status: approved
+  next_sop: null
+
+on_revise:
+  deliverable_status: in-review
+  increment_version: true
+  require_structured_opinion: true
+
+on_reject:
+  deliverable_status: stale
+  propagate_stale: []
+  reopen_sop: 12b-development-delta
+
+dod:
+  - "pipeline validate {{project}} --deliverable=acceptance_report_delta 通过"
+  - "需求验收标准逐条核对完毕"
+  - "已明确回答既有产品验收结论是否受影响"
+  - "遗留清单与未关闭回填任务已披露"

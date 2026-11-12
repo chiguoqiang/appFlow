@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "pipeline-state.schema.json",
+  "title": "AI 移动应用生产线 · 流水线状态",
+  "description": "主 Agent 维护的单项目状态文件。每阶段状态变更后原子写入。Portal(P2) 直接消费此文件渲染进度。",
+  "type": "object",
+  "required": ["project", "current_stage", "stages", "history"],
+  "properties": {
+    "project": {
+      "type": "object",
+      "required": ["codename", "created_at"],
+      "properties": {
+        "codename": { "type": "string" },
+        "platform": { "type": "string", "default": "flutter" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "app_repo_path": { "type": "string" }
+      }
+    },
+    "current_stage": {
+      "type": "string",
+      "enum": ["brief", "planning", "design", "development", "testing", "acceptance", "done"]
+    },
+    "stages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/stage" }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/deliverable" }
+    },
+    "history": {
+      "type": "array",
+      "description": "全部状态流转与版本事件，追加只读",
+      "items": { "$ref": "#/$defs/history_event" }
+    }
+  },
+  "$defs": {
+    "stage": {
+      "type": "object",
+      "required": ["id", "name", "status"],
+      "properties": {
+        "id": { "type": "string", "enum": ["brief", "planning", "design", "development", "testing", "acceptance"] },
+        "name": { "type": "string" },
+        "owner_agent": { "type": "string", "enum": ["user", "planner", "designer", "developer", "tester", "acceptor"] },
+        "status": {
+          "type": "string",
+          "enum": ["locked", "ready", "running", "awaiting_review", "revising", "approved", "rejected"]
+        },
+        "review_rounds": { "type": "integer", "minimum": 0, "default": 0 },
+        "gate": {
+          "type": "object",
+          "description": "人工关卡",
+          "properties": {
+            "actions": {
+              "type": "array",
+              "description": "用户三态动作",
+              "items": { "type": "string", "enum": ["approve", "revise", "reject"] }
+            },
+            "review_package_paths": {
+              "type": "array",
+              "description": "评审包含的交付物路径",
+              "items": { "type": "string" }
+            },
+            "resolved_at": { "type": ["string", "null"], "format": "date-time" }
+          }
+        }
+      }
+    },
+    "deliverable": {
+      "type": "object",
+      "required": ["id", "path", "version", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["project_brief", "prd", "design_brief", "design_delivery", "dev_report", "test_report", "acceptance_report"]
+        },
+        "path": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["draft", "in-review", "approved", "stale"] },
+        "produced_by": { "type": "string", "enum": ["user", "planner", "designer", "developer", "tester", "acceptor"] },
+        "stale_reason": {
+          "type": ["string", "null"],
+          "description": "上游变更导致本交付物需要刷新时填写；空=新鲜"
+        }
+      }
+    },
+    "history_event": {
+      "type": "object",
+      "required": ["ts", "type", "stage"],
+      "properties": {
+        "ts": { "type": "string", "format": "date-time" },
+        "type": {
+          "type": "string",
+          "enum": ["stage_started", "deliverable_produced", "review_submitted", "approved", "revised", "rejected", "deliverable_staled", "stage_completed"]
+        },
+        "stage": { "type": "string" },
+        "actor": { "type": "string" },
+        "detail": { "type": "string" },
+        "deliverable_versions": {
+          "type": "object",
+          "description": "事件发生时的交付物版本快照",
+          "additionalProperties": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

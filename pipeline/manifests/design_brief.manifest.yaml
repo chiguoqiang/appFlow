@@ -1,0 +1,78 @@
+manifest: design_brief
+deliverable: design_brief
+default_path: pipeline/projects/{{project}}/02-design-brief.md
+description: 设计需求书校验（P0 教训：token 必须覆盖设计值、容量写公式、三态必定义）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+
+  - id: principles
+    title: 设计原则与基调
+    type: list
+    required: true
+    min_items: 3
+
+  - id: tokens-color
+    title: 颜色 tokens
+    type: table
+    required: true
+    columns: [Token, 值, 用途]
+    min_rows: 5
+
+  - id: tokens-type
+    title: 文字 tokens
+    type: table
+    required: true
+    columns: [Token, 值, 用途]
+    min_rows: 3
+
+  - id: tokens-spacing
+    title: 间距与形状 tokens
+    type: table
+    required: true
+    columns: [Token, 值]
+    min_rows: 4
+
+  - id: global-spec
+    title: 全局规范
+    type: table
+    required: true
+    columns: [项, 规范]
+
+  - id: page-instructions
+    title: 逐页设计指令
+    type: text
+    required: true
+    must_contain: [区块结构, 元素与数据绑定, 空态]
+    description: 每页必须有区块结构/数据绑定/三态定义
+
+  - id: navigation
+    title: 导航流
+    type: mermaid
+    required: true
+
+  - id: gen-log
+    title: 生成与校验记录
+    type: table
+    required: true
+    columns: [轮次, Figma 生成时间, 校验结果, 缺陷与处理]
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # DR-05：容量/网格类规约必须写公式
+  forbid_pattern:
+    - pattern: "(\\d+\\s*行\\s*[×x]\\s*\\d+\\s*列|固定\\s*\\d+\\s*行)"
+      scope: page-instructions
+      message: "容量/网格类规约必须写成公式（如 rows = ceil((leading + days) / 7)），不得写死行数"

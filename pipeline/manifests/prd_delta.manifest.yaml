@@ -1,0 +1,74 @@
+manifest: prd_delta
+deliverable: prd_delta
+default_path: pipeline/projects/{{project}}/11-prd-delta.md
+description: 增量 PRD 校验（P0 教训：变更必须最小化、影响面必须显式）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [需求编号, 目标项目, 基线 PRD 版本]
+
+  - id: change-list
+    title: 变更清单
+    type: table
+    required: true
+    columns: ["#", 变更项, 影响类型, 关联故事, 说明]
+    min_rows: 1
+    row_id_pattern: "D-\\d+"
+    description: 影响类型 ∈ 新增 | 修改 | 删除
+
+  - id: changed-stories
+    title: 用户故事变更
+    type: table
+    required: true
+    columns: ["#", 用户故事, 优先级, 验收标准, 变更类型]
+    min_rows: 1
+
+  - id: affected-existing
+    title: 受影响的既有功能
+    type: table
+    required: true
+    columns: [既有功能编号, 功能名, 影响说明, 必须回归]
+    min_rows: 1
+    forbid_column_values:
+      必须回归: ["", "否", "待定"]
+
+  - id: data-migration
+    title: 数据模型变更
+    type: text
+    required: false
+    description: 若涉及数据变更，必须给出迁移/兼容方案
+
+  - id: stats-delta
+    title: 统计口径变更
+    type: text
+    required: false
+    description: 若口径变化，必须写清新旧差异
+
+  - id: out-of-scope
+    title: 本次明确不做
+    type: list
+    required: true
+    min_items: 1
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  enum_column:
+    变更清单:
+      影响类型: [新增, 修改, 删除]
+  # DR-12：回归范围不得为空
+  forbid_pattern:
+    - pattern: "^\\s*无\\s*$"
+      scope: affected-existing
+      message: "既有无受影响功能时，也须说明为何无影响；不得直接写『无』"

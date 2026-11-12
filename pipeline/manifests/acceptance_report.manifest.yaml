@@ -1,0 +1,79 @@
+manifest: acceptance_report
+deliverable: acceptance_report
+default_path: pipeline/projects/{{project}}/06-acceptance-report.md
+description: 验收报告校验（P0 教训：未达成项强制 ❌、回填必须披露）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [验收日期, 汇总产物版本, 状态]
+
+  - id: verdict
+    title: 验收结论
+    type: text
+    required: true
+    must_contain: [通过]
+    description: 必须明确给出 通过 / 有条件通过 / 不通过
+
+  - id: feature-check
+    title: MVP 功能逐项核对
+    type: table
+    required: true
+    columns: ["#", 简报功能, 关联故事, 实现证据, 测试证据, 判定]
+    min_rows: 1
+    forbid_column_values:
+      实现证据: ["", "-", "无", "见代码"]
+      测试证据: ["", "-", "无"]
+
+  - id: criteria-check
+    title: 验收标准核对
+    type: table
+    required: true
+    columns: [验收要点, 核对结果, 证据]
+    min_rows: 1
+
+  - id: quality-metrics
+    title: 质量指标汇总
+    type: table
+    required: true
+    columns: [指标, 值, 达标]
+
+  - id: leftover
+    title: 遗留问题清单
+    type: table
+    required: true
+    columns: ["#", 问题, 来源, 影响, 建议处理时机]
+    description: 可为"无"，但章节必须存在
+
+  - id: decision-trace
+    title: 决策轨迹回溯
+    type: table
+    required: true
+    columns: [日期, 阶段, 决策, 版本]
+    min_rows: 1
+
+  - id: pipeline-observation
+    title: 流水线运行观察
+    type: text
+    required: true
+    must_contain: [断点]
+
+  - id: backfill-disclosure
+    title: 未关闭回填任务
+    type: table
+    required: true
+    columns: [回填项, 责任人, 关闭条件, 是否影响判定]
+    description: 无未关闭项时写"无"
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  # 未达成项必须显式标 ❌（不得用"基本完成/部分达成"模糊表述）
+  explicit_failure_marking: true
+  forbid_pattern:
+    - pattern: "(基本完成|大致完成|差不多|应该没问题)"
+      scope: feature-check
+      message: "验收核对禁止模糊表述，必须明确 ✅ / ⚠️ / ❌"

@@ -1,0 +1,146 @@
+ruleset: asset
+name: 资产装配检查（preflight）
+description: >
+  P0 最大架构级教训：Agent 定义都声明了依赖，但没有环节负责把资产装配到位。
+  本规则集就是那个环节——缺项不静默，必须显式 DEGRADED 或 BLOCKED 并登记回填。
+
+target_type: env | project
+
+on_fail_policy: >
+  BLOCKED  → 中止，必须人工修复（环境类）
+  DEGRADED → 自动登记 backfill 任务后继续（资产类，有降级路径）
+  AUTO-FIX → 存在自动装配脚本时优先装配，装配失败才 DEGRADED
+
+checks:
+  - id: AR-01
+    name: Figma MCP 连通性
+    level: DEGRADED
+    check:
+      type: mcp_probe
+      server: figma
+      operation: get_figma_data
+      probe_file_key: "{{env.FIGMA_PROBE_FILE_KEY}}"
+    degrade_to: "设计阶段走『项目内自建 token 集』模式"
+    backfill:
+      item: "Figma MCP 不可用"
+      owner: designer
+      close_condition: "MCP 令牌有效且能读回项目设计文件"
+    rationale: "P0 教训：假设 MCP 可用，结果 OAuth 令牌过期导致设计读回校验中断"
+
+  - id: AR-02
+    name: 团队组件库 / Variables 存在
+    level: DEGRADED
+    check:
+      type: mcp_query
+      server: figma
+      operation: get_variable_defs
+    degrade_to: "项目内自建轻量 token 集（需求书第 2 节为唯一权威）"
+    backfill:
+      item: "团队级设计系统缺失"
+      owner: designer
+      close_condition: "团队 Figma 库建立且 tokens 已落库"
+    rationale: "P0 教训：团队组件库不存在，设计 Agent 临时改为自建 token"
+
+  - id: AR-03
+    name: 规范体系文件（AGENTS.md + rules）
+    level: AUTO-FIX
+    check:
+      type: file_exists
+      paths:
+        - "{{project}}/AGENTS.md"
+        - "{{project}}/.github/skills/flutter-dev-playbook/rules"
+    autofix:
+      script: pipeline/scripts/sync-spec.sh
+      args: ["{{project}}"]
+    degrade_to: "按默认分层约定执行（无规范约束力）"
+    backfill:
+      item: "项目未装配 flutter-dev-playbook 规范体系"
+      owner: developer
+      close_condition: "sync-spec.sh 执行成功且 dod.sh 通过"
+    rationale: "P0 最大断点：简报硬约束『遵循 AGENTS.md 三级 Rules』实际未达成"
+
+  - id: AR-04
+    name: 集成测试截图工具链
+    level: DEGRADED
+    check:
+      type: file_exists
+      paths:
+        - "{{project}}/integration_test"
+    degrade_to: "UI 对比降级为人工核对"
+    backfill:
+      item: "integration_test 截图脚本缺失"
+      owner: tester
+      close_condition: "四页导航截图脚本可跑且产出稳定"
+    rationale: "P0 教训：simctl 无点击能力，PG-02/03/04 完全无运行时截图"
+
+  - id: AR-05
+    name: golden master 基线
+    level: DEGRADED
+    check:
+      type: dir_not_empty
+      path: pipeline/projects/{{project}}/design/screenshots
+    degrade_to: "UI 判定上限 ⚠️（有条件通过）"
+    backfill:
+      item: "设计稿 golden master 缺失"
+      owner: designer
+      close_condition: "四页设计截图导出且 baseline 类型已标注"
+    rationale: "P0 遗留 L-04：降级后未登记回填，差点被遗忘"
+
+  - id: AR-06
+    name: Flutter SDK
+    level: BLOCKED
+    check:
+      type: command
+      run: "flutter --version"
+      pass_when: { exit_code: 0 }
+    message: "Flutter SDK 不可用，流程无法执行（请安装或修正 PATH）"
+
+  - id: AR-07
+    name: iOS 模拟器 / 运行设备
+    level: DEGRADED
+    check:
+      type: command
+      run: "xcrun simctl list devices booted"
+      pass_when: { stdout_contains: "Booted" }
+    degrade_to: "跳过运行冒烟，仅做静态与单测验证"
+    backfill:
+      item: "无可用模拟器，运行冒烟未执行"
+      owner: developer
+      close_condition: "模拟器启动且 flutter run 成功"
+
+  - id: AR-08
+    name: Git 仓库与远端
+    level: DEGRADED
+    check:
+      type: command
+      run: "git rev-parse --is-inside-work-tree"
+      pass_when: { exit_code: 0 }
+    degrade_to: "无 PR 链接，code review 关卡改为本地 diff"
+    backfill:
+      item: "项目未纳入 Git"
+      owner: developer
+      close_condition: "git 仓库初始化且首提交完成"
+    rationale: "P0 教训：无 PR 导致 code review 关卡没有真实产物"
+
+  - id: AR-09
+    name: 状态机与磁盘交付物一致性
+    level: BLOCKED
+    check:
+      type: state_consistency
+      rule: "pipeline-state.json 记录的交付物版本与文件实际版本一致"
+    message: "状态机与磁盘交付物不一致，可能存在手工改动，需先修复再继续"
+    rationale: "P0 教训：状态靠手改 JSON，容易与实际脱节"
+
+  - id: AR-10
+    name: Agent 执行通道可用
+    level: BLOCKED
+    check:
+      type: agent_probe
+      agents: [planner, designer, developer, tester, acceptor]
+    message: "Agent 执行通道不可用（headless CLI 或 mock 未就绪），流程无法推进"
+    rationale: "Agent 不可用则流程无法推进"
+
+report:
+  output: pipeline/projects/{{project}}/preflight-report.md
+  format: table   # 检查项 | 级别 | 结果 | 降级方案 | 回填任务编号 | 关闭条件
+  fail_fast_on_blocked: true

@@ -1,0 +1,66 @@
+manifest: test_report_delta
+deliverable: test_report_delta
+default_path: pipeline/projects/{{project}}/14-test-delta.md
+description: 增量测试报告校验（新功能 + 回归，回归覆盖不得缩小）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [需求编号, 测试环境, 执行日期]
+
+  - id: verdict
+    title: 测试结论
+    type: table
+    required: true
+    columns: [指标, 结果]
+    must_contain: [总体判定, 新功能用例, 回归用例]
+
+  - id: new-cases
+    title: 新功能用例
+    type: table
+    required: true
+    columns: ["#", 用例, 关联变更项, 结果]
+    min_rows: 1
+    row_id_pattern: "TCN-\\d+"
+
+  - id: regression-cases
+    title: 回归用例
+    type: table
+    required: true
+    columns: ["#", 回归项, 原用例编号, 结果, 备注]
+    min_rows: 1
+    row_id_pattern: "TCR-\\d+"
+    forbid_column_values:
+      原用例编号: ["", "-", "无"]
+
+  - id: coverage-check
+    title: 回归覆盖核对
+    type: table
+    required: true
+    columns: [受影响功能, 是否覆盖, 不覆盖的理由]
+    min_rows: 1
+    description: 必须 100% 覆盖 11-prd-delta 的"受影响既有功能"
+
+  - id: defects
+    title: 缺陷清单
+    type: table
+    required: true
+    columns: ["#", 缺陷, 严重度, 复现步骤, 关联用例, 状态]
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  enum_column:
+    缺陷清单:
+      严重度: [高, 中, 低]
+  require_independent_cases: true

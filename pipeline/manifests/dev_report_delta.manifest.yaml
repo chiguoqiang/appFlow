@@ -1,0 +1,69 @@
+manifest: dev_report_delta
+deliverable: dev_report_delta
+default_path: pipeline/projects/{{project}}/13-dev-delta.md
+description: 增量开发报告校验（改动文件清单必须与增量 PRD 可对应）
+
+sections:
+  - id: meta
+    title: 元数据
+    type: table
+    required: true
+    columns: [字段, 值]
+    must_contain: [需求编号, 目标项目, 报告版本]
+
+  - id: change-mapping
+    title: 变更实现对照
+    type: table
+    required: true
+    columns: [变更项编号, 实现说明, 涉及文件]
+    min_rows: 1
+    row_id_pattern: "D-\\d+"
+    description: 必须与 11-prd-delta 的 D-xx 一一对应
+
+  - id: changed-files
+    title: 改动文件清单
+    type: table
+    required: true
+    columns: [文件路径, 变更类型, 说明]
+    min_rows: 1
+    forbid_column_values:
+      变更类型: ["", "待定", "TBD"]
+
+  - id: test-changes
+    title: 测试变更
+    type: table
+    required: true
+    columns: [测试文件, 新增用例, 修改用例, 修改理由]
+    description: 既有测试若有改动必须逐条说明
+
+  - id: baseline
+    title: 基线对比
+    type: table
+    required: true
+    columns: [指标, 改动前, 改动后]
+    must_contain: [测试, analyze]
+
+  - id: known-issues
+    title: 已知问题与风险
+    type: table
+    required: true
+    columns: ["#", 问题/风险, 严重度, 处理建议]
+
+  - id: decision-log
+    title: 决策记录
+    type: table
+    required: true
+    columns: [日期, 版本, 决策, 理由, 提出方]
+    min_rows: 1
+
+rules:
+  forbid_placeholder: true
+  forbid_empty_section: true
+  enum_column:
+    改动文件清单:
+      变更类型: [新增, 修改, 删除]
+  # 破坏既有测试必须说明
+  forbid_pattern:
+    - pattern: "(改了断言|跳过测试|@Skip|skip: true)"
+      scope: test-changes
+      message: "破坏/跳过既有测试必须说明原因并获准"

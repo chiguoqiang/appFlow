@@ -1,0 +1,94 @@
+ruleset: quality-gate
+name: 质量门硬规则
+description: >
+  P0 教训：质量判定不能靠 Agent 主观裁定。本规则集把"能不能放行"变成可求值的规则。
+  任何 QG 规则失败 = 阶段不可通过（不允许降级）。
+
+target_type: test_report | test_report_delta
+
+rules:
+  - id: QG-01
+    name: 高严重度缺陷必须清零
+    severity: blocker
+    when:
+      table: 缺陷清单
+      column: 严重度
+      equals: 高
+      count_gt: 0
+    then:
+      verdict: fail
+      message: "存在 {count} 个高严重度未修复缺陷，不可放行"
+    rationale: "P0 关卡 4 靠 Agent 自裁 + 用户覆盖才放行；本规则把判定权收回规则"
+
+  - id: QG-02
+    name: 必须有独立设计的用例
+    severity: blocker
+    when:
+      document:
+        requires_flag: "require_independent_cases"
+        evidence_any:
+          - "禁止复用开发用例"
+          - "独立设计"
+          - "独立用例"
+    then:
+      verdict: fail
+      message: "未发现独立用例证据；复用开发用例会使缺陷命中率趋近 0"
+    rationale: "P0 实测：独立用例命中率 ~24%，复用开发用例趋近 0"
+
+  - id: QG-03
+    name: 用例与需求必须可追溯
+    severity: major
+    when:
+      table: 用例执行结果
+      column: 关联
+      empty_or_any: ["", "-", "无", "无关联"]
+      count_gt: 0
+    then:
+      verdict: fail
+      message: "存在无需求关联的用例；凭空用例不允许"
+    rationale: "无法追溯到需求/故事的用例无法证明覆盖度"
+
+  - id: QG-04
+    name: 边界用例覆盖下限
+    severity: major
+    when:
+      table: 边界用例
+      row_count_lt: 3
+    then:
+      verdict: fail
+      message: "边界用例少于 3 项；至少覆盖空数据/超长输入/时间边界"
+    rationale: "P0 的 4 个缺陷有 2 个出在边界/交叉场景"
+
+  - id: QG-05
+    name: 增量流程：回归覆盖必须 100%
+    severity: blocker
+    when:
+      applies_to: test_report_delta
+      table: 回归覆盖核对
+      column: 是否覆盖
+      equals: 否
+      count_gt: 0
+    then:
+      verdict: fail
+      message: "存在未覆盖的受影响功能且未给出理由"
+    rationale: "增量最大的风险是回归遗漏"
+
+  - id: QG-06
+    name: 总体判定必须与缺陷统计一致
+    severity: major
+    when:
+      consistency:
+        claim_section: 测试结论
+        claim_field: 总体判定
+        expected_fail_when: [QG-01]
+    then:
+      verdict: fail
+      message: "总体判定与缺陷统计矛盾（有高严重度却判通过）"
+
+overrides:
+  # 人工放行时必须留书面理由，且理由写入验收遗留清单
+  human_override:
+    allowed: true
+    requires_comment: true
+    must_record_to: acceptance_report.leftover
+    note: "允许人工放行，但必须留痕并由验收报告披露"
