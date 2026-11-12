@@ -222,6 +222,44 @@ pipeline run my-app --stage=planning --agent=headless
 
 ---
 
+## 2.6 可视化台（浏览器操作）
+
+```bash
+cd pipeline/cli && export PATH="$PWD:$PATH"
+pipeline serve --open      # 默认 http://127.0.0.1:8787
+```
+
+| 页面区域 | 能做什么 |
+|---------|---------|
+| 左侧栏 | 项目列表（含进度条与「待评审」黄点）、新建项目 |
+| 阶段时间线 | 6 个阶段状态一目了然（已通过 / 就绪 / 待评审 / 已打回） |
+| 当前阶段区 | 「自动执行（mock）」或「手写交付物」 |
+| 交付物区 | 点击任一交付物 → 编辑器（保存 / 校验 / 提交评审） |
+| 关卡区 | 三态按钮：通过 / 调整 / 打回（调整与打回强制填意见） |
+| 回填 / 关卡历史 | 降级回填任务、历次审批留痕 |
+
+**技术栈**：Python 标准库 `http.server` + 单文件 HTML（内嵌 CSS/JS，无 CDN、无构建链、离线可用）。
+**安全**：仅监听 `127.0.0.1`；写操作限定在 `pipeline/projects/<project>/` 内（契约层只读）。
+
+**新建项目会自动用模板铺好 7 份交付物骨架**（含 `{{占位符}}`），
+提交时校验会精确拦住未填字段——这比空文件更好，因为结构与必填项已经摆在那里。
+
+**API**（如需脚本化调用）：
+```
+GET  /api/projects                         项目列表
+POST /api/projects                         新建 {codename, flow}
+GET  /api/projects/{p}                     项目快照（阶段/交付物/回填/关卡史）
+GET  /api/projects/{p}/deliverables/{id}   读交付物
+PUT  /api/projects/{p}/deliverables/{id}   写交付物 {content}
+POST /api/projects/{p}/validate/{id}       校验（可选 run_rules）
+POST /api/projects/{p}/submit              提交评审 {stage}
+POST /api/projects/{p}/gate                关卡 {stage, action, comment}
+POST /api/projects/{p}/run                 自动执行 {stage, answers}
+GET  /api/templates/{id}                   取模板骨架
+```
+
+---
+
 ## 3. 目录导航
 
 ```
@@ -272,6 +310,9 @@ export PATH="$PWD:$PATH"      # 让 pipeline 命令可用
 ```bash
 # 初始化项目
 pipeline init my-app --flow=new_project
+
+# ★ 可视化台（推荐）：浏览器里点几下完成全部流程
+pipeline serve --open          # http://127.0.0.1:8787
 
 # 方式一：mock 自动生成（验证流程机制，内容为占位符）
 pipeline run my-app --stage=brief \

@@ -46,7 +46,7 @@
 | `pipeline/gates/` | **4 套规则集 / 36 条规则** | 质量门 + DoD + 资产探测 + 内容规则 |
 | `pipeline/agents/` | **5 份执行契约** | 职责边界 + 红线 + gate 响应 |
 | `pipeline/templates/` | **7 份交付物模板** | 含 P0 教训硬化 |
-| `pipeline/cli/` | **调度器（Python）** | M2 内核 |
+| `pipeline/cli/` | **调度器（Python）** | M2 内核 + 本地可视化台 |
 | `demo-app/` | **产出示例** | 习惯打卡 App（Flutter，65 项测试全绿） |
 
 ---
@@ -54,6 +54,9 @@
 ## 快速验证（3 条命令）
 
 ```bash
+# 0. 用可视化台（最直观）
+cd pipeline/cli && export PATH="$PWD:$PATH" && pipeline serve --open
+
 # 1. 契约自检（应：通过 31 | 警告 0 | 错误 0）
 python3 pipeline/scripts/validate-contracts.py
 

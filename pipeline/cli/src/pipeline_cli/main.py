@@ -710,6 +710,26 @@ def preflight(
 # ---------------------------------------------------------------------------
 
 @app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", "--host", help="监听地址（默认仅本机）"),
+    port: int = typer.Option(8787, "--port", "-p", help="监听端口"),
+    open_browser: bool = typer.Option(False, "--open", help="启动后自动打开浏览器"),
+) -> None:
+    """启动本地可视化台（浏览器操作流程）。"""
+    try:
+        paths = _paths()
+        from .web import serve as _serve
+
+        _serve(paths=paths, host=host, port=port, open_browser=open_browser)
+    except PipelineError as exc:
+        _fail(exc)
+    except OSError as exc:
+        console.print(f"[red]✗[/red] 无法监听 {host}:{port} — {exc}")
+        console.print("  端口被占用？换一个：pipeline serve --port 9000")
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def version() -> None:
     """显示版本。"""
     console.print(f"pipeline-cli {__version__}")

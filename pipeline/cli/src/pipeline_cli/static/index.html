@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 应用生产线 · 本地台</title>
+<style>
+:root{
+  --primary:#4F6BED; --primary-soft:rgba(79,107,237,.10);
+  --bg:#F6F7FB; --surface:#fff; --text:#1A1D29; --muted:#8A90A3;
+  --line:#ECEDF3; --ok:#30A46C; --warn:#F76B15; --err:#E5484D;
+  --radius:12px; --shadow:0 2px 8px rgba(26,29,41,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+/* 关键：.empty 等元素自带 display 会覆盖 hidden 属性的默认样式，
+   必须显式强制 [hidden] 生效，否则空态与详情会同时出现 */
+[hidden]{display:none !important}
+body{
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;
+  background:var(--bg);color:var(--text);height:100vh;display:flex;overflow:hidden;
+}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,textarea,select{font:inherit;color:inherit}
+
+/* ---------- 侧栏 ---------- */
+.sidebar{
+  width:288px;flex:0 0 288px;background:var(--surface);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;
+}
+.brand{padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+.brand h1{font-size:15px;font-weight:600;letter-spacing:-.2px}
+.brand p{font-size:12px;color:var(--muted);margin-top:3px}
+.sidebar-scroll{flex:1;overflow-y:auto;padding:12px}
+.new-btn{
+  width:100%;padding:10px;border-radius:10px;background:var(--primary);color:#fff;
+  font-weight:500;font-size:13px;transition:.15s;
+}
+.new-btn:hover{filter:brightness(1.08)}
+.proj{
+  padding:11px 13px;border-radius:10px;cursor:pointer;margin-top:6px;
+  border:1px solid transparent;transition:.12s;
+}
+.proj:hover{background:var(--bg)}
+.proj.active{background:var(--primary-soft);border-color:rgba(79,107,237,.25)}
+.proj-top{display:flex;align-items:center;gap:6px}
+.proj-name{font-weight:600;font-size:13px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px}
+.dot.review{background:var(--warn);animation:pulse 1.6s infinite}
+.dot.done{background:var(--ok)}
+.dot.idle{background:var(--line)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.proj-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between}
+.bar{height:3px;background:var(--line);border-radius:2px;margin-top:7px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--primary);border-radius:2px;transition:.3s}
+
+/* ---------- 主区 ---------- */
+main{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 60px}
+.empty{
+  height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  color:var(--muted);gap:10px;
+}
+.empty .big{font-size:38px;opacity:.25}
+
+.head{display:flex;align-items:flex-start;gap:16px;margin-bottom:18px}
+.head h2{font-size:20px;font-weight:600;letter-spacing:-.3px}
+.head .sub{font-size:12px;color:var(--muted);margin-top:4px}
+.head-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.pill{
+  font-size:11px;padding:4px 10px;border-radius:999px;background:var(--bg);
+  color:var(--muted);border:1px solid var(--line);
+}
+.pill.pri{background:var(--primary-soft);color:var(--primary);border-color:rgba(79,107,237,.22)}
+.pill.ok{background:rgba(48,164,108,.1);color:var(--ok);border-color:rgba(48,164,108,.22)}
+.pill.warn{background:rgba(247,107,21,.1);color:var(--warn);border-color:rgba(247,107,21,.22)}
+.pill.err{background:rgba(229,72,77,.1);color:var(--err);border-color:rgba(229,72,77,.22)}
+
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.card h3{font-size:13px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card h3 .cnt{font-size:11px;color:var(--muted);font-weight:400}
+
+/* 阶段时间线 */
+.stages{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.stage{
+  flex:0 0 auto;min-width:112px;padding:10px 12px;border-radius:10px;
+  border:1px solid var(--line);background:var(--bg);cursor:pointer;transition:.12s;
+}
+.stage:hover{border-color:rgba(79,107,237,.3)}
+.stage.cur{border-color:var(--primary);background:var(--primary-soft);box-shadow:0 0 0 1px var(--primary) inset}
+.stage .nm{font-size:12px;font-weight:600;margin-bottom:3px}
+.stage .st{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px}
+.stage.approved .st{color:var(--ok)}
+.stage.awaiting_review .st{color:var(--warn)}
+.stage.rejected .st{color:var(--err)}
+.stage.cur .nm{color:var(--primary)}
+
+/* 动作区 */
+.actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{
+  padding:8px 15px;border-radius:9px;font-size:13px;font-weight:500;
+  border:1px solid var(--line);background:var(--surface);transition:.12s;
+}
+.btn:hover:not(:disabled){border-color:rgba(79,107,237,.4);color:var(--primary)}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn.primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08);color:#fff}
+.btn.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+.btn.ok:hover:not(:disabled){filter:brightness(1.08);color:#fff}
+.btn.warn{border-color:rgba(247,107,21,.4);color:var(--warn)}
+.btn.err{border-color:rgba(229,72,77,.4);color:var(--err)}
+.btn.sm{padding:5px 11px;font-size:12px;border-radius:8px}
+.hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.7}
+.hint code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:11px}
+
+/* 交付物 */
+.deliv{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:9px;transition:.1s}
+.deliv:hover{background:var(--bg)}
+.deliv .ic{width:22px;text-align:center;font-size:13px;flex:0 0 22px}
+.deliv .body{flex:1;min-width:0}
+.deliv .id{font-size:13px;font-weight:500;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.deliv .path{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.deliv .tag{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--muted);flex:0 0 auto}
+.deliv .tag.in-review{background:rgba(79,107,237,.1);color:var(--primary)}
+.deliv .tag.approved{background:rgba(48,164,108,.1);color:var(--ok)}
+.deliv .tag.stale{background:rgba(229,72,77,.1);color:var(--err)}
+
+/* 空状态小字 */
+.none{font-size:12px;color:var(--muted);padding:6px 2px}
+
+/* ---------- 编辑器 ---------- */
+.overlay{
+  position:fixed;inset:0;background:rgba(26,29,41,.42);display:flex;align-items:center;
+  justify-content:center;padding:26px;z-index:50;
+}
+.overlay[hidden]{display:none}
+.modal{
+  background:var(--surface);border-radius:16px;width:100%;max-width:1080px;height:100%;
+  max-height:calc(100vh - 52px);display:flex;flex-direction:column;overflow:hidden;
+  box-shadow:0 16px 48px rgba(26,29,41,.22);
+}
+.modal.narrow{max-width:460px;height:auto;max-height:88vh}
+.modal-head{
+  padding:16px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;
+}
+.modal-head h3{font-size:15px;font-weight:600}
+.modal-head .sub{font-size:11px;color:var(--muted);margin-top:2px;font-family:ui-monospace,monospace}
+.modal-head .x{margin-left:auto;font-size:20px;color:var(--muted);padding:0 4px;line-height:1}
+.modal-head .x:hover{color:var(--text)}
+.modal-body{flex:1;display:flex;flex-direction:column;min-height:0;padding:16px 20px}
+textarea{
+  flex:1;width:100%;resize:none;border:1px solid var(--line);border-radius:10px;padding:14px;
+  font:13px/1.75 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#FCFCFE;
+  min-height:200px;
+}
+textarea:focus{outline:none;border-color:var(--primary);background:#fff}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.modal-foot .spacer{flex:1}
+
+/* 校验结果 */
+.report{margin-top:12px;max-height:34vh;overflow-y:auto;font-size:12.5px}
+.report .row{padding:6px 10px;border-radius:7px;margin-bottom:5px;line-height:1.5}
+.report .row.bad{background:rgba(229,72,77,.07);border-left:2px solid var(--err)}
+.report .row.good{background:rgba(48,164,108,.07);border-left:2px solid var(--ok)}
+.report .row.skip{background:rgba(138,144,163,.09);border-left:2px solid var(--muted);color:var(--muted)}
+.report .k{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);margin-right:6px}
+.report .ok-title{color:var(--ok);font-weight:600}
+
+/* 表单 */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12px;font-weight:500;margin-bottom:6px}
+.field input,.field select{
+  width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--primary)}
+.field .desc{font-size:11px;color:var(--muted);margin-top:5px}
+
+/* toast */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{
+  padding:10px 18px;border-radius:10px;background:#1A1D29;color:#fff;font-size:13px;
+  box-shadow:0 6px 20px rgba(0,0,0,.22);animation:up .2s ease;
+}
+.toast.ok{background:var(--ok)}
+.toast.err{background:var(--err)}
+.toast.warn{background:var(--warn)}
+@keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* 加载 */
+.loading{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 表格 */
+table.kv{width:100%;border-collapse:collapse;font-size:12.5px}
+table.kv td{padding:6px 8px;border-bottom:1px solid var(--line)}
+table.kv td:first-child{color:var(--muted);width:110px}
+
+/* ---------- 响应式 ---------- */
+@media (max-width:1000px){
+  .sidebar{width:232px;flex:0 0 232px}
+  main{padding:20px 18px 48px}
+}
+@media (max-width:720px){
+  body{flex-direction:column}
+  .sidebar{
+    width:100%;flex:0 0 auto;max-height:40vh;border-right:none;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{padding:12px 16px 10px}
+  .sidebar-scroll{display:flex;gap:8px;overflow-x:auto;overflow-y:hidden;padding:10px 12px}
+  .new-btn{flex:0 0 auto;width:auto;padding:8px 14px;margin:0;font-size:12px}
+  .proj{flex:0 0 176px;margin-top:0}
+  main{padding:16px 14px 40px;min-height:0}
+  .head{flex-direction:column;gap:8px}
+  .head-right{margin-left:0}
+  .modal{max-width:none;border-radius:12px}
+  .overlay{padding:10px}
+}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <h1>AI 应用生产线</h1>
+    <p>本地可视化台 · M2</p>
+  </div>
+  <div class="sidebar-scroll">
+    <button class="new-btn" onclick="openNewProject()">＋ 新建项目</button>
+    <div id="projectList"></div>
+  </div>
+</aside>
+
+<main>
+  <div class="empty" id="emptyView">
+    <div class="big">◫</div>
+    <div>从左侧选择一个项目</div>
+    <div style="font-size:12px">或点击「新建项目」开始</div>
+  </div>
+  <div id="detailView" hidden></div>
+</main>
+
+<!-- 交付物编辑器 -->
+<div class="overlay" id="editorOverlay" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h3 id="edTitle">交付物</h3>
+        <div class="sub" id="edPath"></div>
+      </div>
+      <button class="x" onclick="closeEditor()">×</button>
+    </div>
+    <div class="modal-body">
+      <textarea id="edContent" spellcheck="false" placeholder="在此编写交付物内容…"></textarea>
+      <div class="report" id="edReport"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm" onclick="insertTemplate()">从模板创建</button>
+      <button class="btn sm" onclick="saveDeliverable()">保存</button>
+      <button class="btn sm" onclick="validateDeliverable()">校验</button>
+      <div class="spacer"></div>
+      <button class="btn primary" onclick="submitDeliverable()">提交并进入评审</button>
+    </div>
+  </div>
+</div>
+
+<!-- 关卡意见 -->
+<div class="overlay" id="gateOverlay" hidden>
+  <div class="modal narrow">
+    <div class="modal-head">
+      <div><h3 id="gateTitle">关卡</h3></div>
+      <button class="x" onclick="closeGate()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>意见（revise / reject 必填，approve 选填）</label>
+        <textarea id="gateComment" style="min-height:110px" placeholder="说明需要改什么…"></textarea>
+      </div>
+      <div class="report" id="gateReport"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ok" onclick="doGate('approve')">✓ 通过</button>
+      <button class="btn warn" onclick="doGate('revise')">✎ 调整</button>
+      <button class="btn err" onclick="doGate('reject')">⏪ 打回</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建项目 -->
+<div class="overlay" id="newOverlay" hidden>
+  <div class="modal narrow">
+    <div class="modal-head">
+      <div><h3>新建项目</h3></div>
+      <button class="x" onclick="closeNewProject()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>项目代号</label>
+        <input id="npName" placeholder="例如 coffee-notes" autocomplete="off">
+        <div class="desc">只允许字母、数字、- 和 _，将作为目录名</div>
+      </div>
+      <div class="field">
+        <label>流程类型</label>
+        <select id="npFlow" onchange="toggleTarget()">
+          <option value="new_project">新项目（从零建 App）</option>
+          <option value="new_requirement">新需求（改现有 App）</option>
+        </select>
+      </div>
+      <div class="field" id="npTargetField" hidden>
+        <label>目标项目</label>
+        <input id="npTarget" placeholder="例如 demo-habit" autocomplete="off">
+        <div class="desc">增量流程需要指定被修改的已有项目</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer"></div>
+      <button class="btn" onclick="closeNewProject()">取消</button>
+      <button class="btn primary" onclick="createProject()">创建</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============================================================
+// 状态与工具
+// ============================================================
+const S = {
+  projects: [],
+  name: null,
+  detail: null,
+  editing: null,     // 当前编辑的交付物 id
+  gateStage: null,
+  busy: false,
+};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json' },
+    ...opts,
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch { data = { error: `HTTP ${res.status}` }; }
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.hint = data.hint;
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+function toast(msg, type = 'ok', ms = 2600) {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  $('toast').appendChild(el);
+  setTimeout(() => {
+    el.style.transition = 'opacity .25s';
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 260);
+  }, ms);
+}
+
+function fail(e) {
+  toast(e.hint ? `${e.message}（${e.hint}）` : e.message, 'err', 4200);
+}
+
+// ============================================================
+// 渲染：项目列表
+// ============================================================
+async function loadProjects() {
+  try {
+    S.projects = await api('/api/projects');
+  } catch (e) { fail(e); S.projects = []; }
+  renderProjects();
+}
+
+function renderProjects() {
+  const box = $('projectList');
+  if (!S.projects.length) {
+    box.innerHTML = '<div class="none" style="padding:14px 6px">暂无项目</div>';
+    return;
+  }
+  box.innerHTML = S.projects.map(p => {
+    const cls = p.awaiting_review ? 'review' : (p.progress.percent === 100 ? 'done' : 'idle');
+    const active = p.codename === S.name ? ' active' : '';
+    return `
+      <div class="proj${active}" onclick="selectProject('${esc(p.codename)}')">
+        <div class="proj-top">
+          <span class="dot ${cls}"></span>
+          <span class="proj-name">${esc(p.codename)}</span>
+        </div>
+        <div class="proj-meta">
+          <span>${esc(p.current_stage_name || p.current_stage)}</span>
+          <span>${p.progress.approved}/${p.progress.total}</span>
+        </div>
+        <div class="bar"><i style="width:${p.progress.percent}%"></i></div>
+      </div>`;
+  }).join('');
+}
+
+async function selectProject(name) {
+  S.name = name;
+  renderProjects();
+  await loadDetail();
+}
+
+// ============================================================
+// 渲染：项目详情
+// ============================================================
+async function loadDetail() {
+  if (!S.name) return;
+  try {
+    S.detail = await api(`/api/projects/${encodeURIComponent(S.name)}`);
+    renderDetail();
+  } catch (e) { fail(e); }
+}
+
+const STATUS_ICON = {
+  locked: '·', ready: '→', running: '▶', awaiting_review: '⏸',
+  revising: '✎', approved: '✓', rejected: '✗',
+};
+const STATUS_TEXT = {
+  locked: '未开始', ready: '就绪', running: '执行中', awaiting_review: '待评审',
+  revising: '调整中', approved: '已通过', rejected: '已打回',
+};
+const DELIV_ICON = {
+  approved: '✓', 'in-review': '◷', stale: '✗', draft: '○',
+};
+
+function renderDetail() {
+  const d = S.detail;
+  if (!d) return;
+  $('emptyView').hidden = true;
+  const v = $('detailView');
+  v.hidden = false;
+
+  const cur = d.stages.find(s => s.id === d.current_stage);
+  const curStatus = cur ? cur.status : 'done';
+  const allDone = d.current_stage === 'done';
+
+  // 头部
+  const head = `
+    <div class="head">
+      <div>
+        <h2>${esc(d.codename)}</h2>
+        <div class="sub">${d.flow === 'new_requirement' ? '增量需求流程' : '新项目流程'}
+          ${d.target_project ? ' · 目标：' + esc(d.target_project) : ''}
+          · 进度 ${d.progress.approved}/${d.progress.total}</div>
+      </div>
+      <div class="head-right">
+        ${allDone ? '<span class="pill ok">🎉 已完成</span>' :
+          `<span class="pill ${curStatus === 'awaiting_review' ? 'warn' : 'pri'}">
+             ${esc(cur ? cur.name : d.current_stage)} · ${STATUS_TEXT[curStatus] || curStatus}
+           </span>`}
+      </div>
+    </div>`;
+
+  // 阶段时间线
+  const stages = `
+    <div class="card">
+      <h3>阶段进度</h3>
+      <div class="stages">
+        ${d.stages.map(s => `
+          <div class="stage ${s.status} ${s.id === d.current_stage ? 'cur' : ''}">
+            <div class="nm">${esc(s.name)}</div>
+            <div class="st">${STATUS_ICON[s.status] || '?'} ${esc(s.label)}${s.rounds > 1 ? ` · ${s.rounds}轮` : ''}</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+
+  // 当前阶段操作
+  let actionCard = '';
+  if (allDone) {
+    actionCard = `
+      <div class="card">
+        <h3>已交付</h3>
+        <div class="hint">全部阶段已通过。可在左侧新建其他项目，或查看下方交付物与关卡历史。</div>
+      </div>`;
+  } else if (d.actions.gate) {
+    actionCard = `
+      <div class="card">
+        <h3>关卡 · ${esc(d.current_sop?.gate_title || '评审')}</h3>
+        <div class="hint" style="margin:0 0 12px">
+          评审包：${(cur?.gate?.review_package || []).map(p => `<code>${esc(p)}</code>`).join(' ') || '（见交付物）'}
+        </div>
+        <div class="actions">
+          <button class="btn primary" onclick="openGate()">进入关卡评审</button>
+          <button class="btn sm" onclick="openDeliverableByName('${esc(d.current_sop?.output_deliverable || '')}')">查看交付物</button>
+        </div>
+        <div class="hint">通过 → 解锁下一阶段；调整 → 版本+1 且重跑本阶段；打回 → 下游全部标记过期并重开上游。</div>
+      </div>`;
+  } else {
+    actionCard = `
+      <div class="card">
+        <h3>当前阶段 · ${esc(cur ? cur.name : '')}</h3>
+        <div class="hint" style="margin:0 0 12px">
+          SOP <code>${esc(d.current_sop?.id || '-')}</code> · 责任人 <code>${esc(d.current_sop?.owner_agent || '-')}</code>
+          ${d.current_sop?.output_deliverable ? ` · 产出 <code>${esc(d.current_sop.output_deliverable)}</code>` : ''}
+        </div>
+        <div class="actions">
+          <button class="btn primary" onclick="runStage()">▶ 自动执行本阶段（mock）</button>
+          <button class="btn" onclick="openDeliverableByName('${esc(d.current_sop?.output_deliverable || '')}')">✎ 手写交付物</button>
+        </div>
+        <div class="hint">
+          「自动执行」用 mock Agent 生成结构合法的占位内容，用于验证流程；<br>
+          「手写交付物」是真实用法：你写内容 → 机器校验 → 进入关卡。
+        </div>
+      </div>`;
+  }
+
+  // 交付物
+  const delivs = `
+    <div class="card">
+      <h3>交付物 <span class="cnt">${d.deliverables.length} 份</span></h3>
+      ${d.deliverables.map(x => `
+        <div class="deliv">
+          <div class="ic">${DELIV_ICON[x.status] || '○'}</div>
+          <div class="body">
+            <div class="id">${esc(x.id)} <span style="color:var(--muted);font-weight:400">v${x.version}</span></div>
+            <div class="path">${esc(x.path)}${x.exists ? ` · ${(x.size/1024).toFixed(1)} KB` : ' · 尚未创建'}</div>
+            ${x.stale_reason ? `<div class="path" style="color:${x.status === 'stale' ? 'var(--err)' : 'var(--muted)'}">${esc(x.stale_reason)}</div>` : ''}
+          </div>
+          <span class="tag ${x.status}">${x.status}</span>
+          <button class="btn sm" onclick="openDeliverable('${esc(x.id)}')">${x.exists ? '编辑' : '创建'}</button>
+        </div>`).join('')}
+    </div>`;
+
+  // 回填
+  let backfill = '';
+  if (d.backfills && d.backfills.length) {
+    backfill = `
+      <div class="card">
+        <h3>回填任务 <span class="cnt">${d.backfills.filter(b=>b.status==='open').length} 未关闭</span></h3>
+        ${d.backfills.map(b => `
+          <div class="deliv">
+            <div class="ic">${b.status === 'closed' ? '✓' : '◷'}</div>
+            <div class="body">
+              <div class="id" style="font-family:inherit">${esc(b.item)}</div>
+              <div class="path">${esc(b.id)} · ${esc(b.owner)} · 关闭条件：${esc(b.close_condition)}</div>
+            </div>
+            ${b.blocks_acceptance ? '<span class="tag stale">阻塞验收</span>' : '<span class="tag">不阻塞</span>'}
+          </div>`).join('')}
+      </div>`;
+  }
+
+  // 关卡历史
+  let history = '';
+  if (d.gate_log && d.gate_log.length) {
+    const actText = { approve: '通过', revise: '调整', reject: '打回' };
+    history = `
+      <div class="card">
+        <h3>关卡历史</h3>
+        ${d.gate_log.slice().reverse().map(g => `
+          <div class="deliv">
+            <div class="ic">${g.action === 'approve' ? '✓' : g.action === 'revise' ? '✎' : '✗'}</div>
+            <div class="body">
+              <div class="id" style="font-family:inherit">${esc(g.stage)} · ${actText[g.action] || g.action}</div>
+              <div class="path">${esc(g.ts)}${g.comment ? ' · ' + esc(g.comment) : ''}</div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  v.innerHTML = head + stages + actionCard + delivs + backfill + history;
+}
+
+// ============================================================
+// 动作：跑阶段
+// ============================================================
+async function runStage() {
+  if (S.busy) return;
+  S.busy = true;
+  toast('正在执行本阶段…', 'warn', 1500);
+  try {
+    const r = await api(`/api/projects/${encodeURIComponent(S.name)}/run`, {
+      method: 'POST', body: {},
+    });
+    if (r.status === 'awaiting_review') {
+      toast('阶段已跑完，停在关卡等你确认', 'ok', 3200);
+    } else if (r.ok) {
+      toast('阶段完成');
+    } else {
+      toast('执行失败：' + (r.error || '未知'), 'err', 4000);
+    }
+    await loadDetail();
+    await loadProjects();
+  } catch (e) { fail(e); }
+  finally { S.busy = false; }
+}
+
+// ============================================================
+// 动作：编辑器
+// ============================================================
+async function openDeliverableByName(did) {
+  if (!did) { toast('本阶段无主交付物', 'warn'); return; }
+  await openDeliverable(did);
+}
+
+async function openDeliverable(did) {
+  try {
+    const r = await api(`/api/projects/${encodeURIComponent(S.name)}/deliverables/${encodeURIComponent(did)}`);
+    S.editing = did;
+    $('edTitle').textContent = `${did} · v${r.version}`;
+    $('edPath').textContent = r.path + (r.exists ? '' : '（尚未创建）');
+    $('edContent').value = r.content || '';
+    $('edReport').innerHTML = '';
+    $('editorOverlay').hidden = false;
+    $('edContent').focus();
+  } catch (e) { fail(e); }
+}
+
+function closeEditor() {
+  $('editorOverlay').hidden = true;
+  S.editing = null;
+}
+
+async function insertTemplate() {
+  if (!S.editing) return;
+  if ($('edContent').value.trim() && !confirm('当前内容非空，模板会覆盖。继续？')) return;
+  try {
+    const r = await api(`/api/templates/${encodeURIComponent(S.editing)}`);
+    if (!r.available) { toast(r.reason || '无可用模板', 'warn'); return; }
+    $('edContent').value = r.content;
+    toast('已插入模板，按需修改后保存', 'ok');
+  } catch (e) { fail(e); }
+}
+
+async function saveDeliverable() {
+  if (!S.editing) return;
+  try {
+    await api(`/api/projects/${encodeURIComponent(S.name)}/deliverables/${encodeURIComponent(S.editing)}`, {
+      method: 'PUT', body: { content: $('edContent').value },
+    });
+    toast('已保存');
+  } catch (e) { fail(e); }
+}
+
+function renderReport(payload) {
+  const box = $('edReport');
+  const parts = [];
+
+  const v = payload.violations || [];
+  if (v.length) {
+    parts.push(`<div class="row bad"><b>结构校验未通过：${v.length} 项</b></div>`);
+    v.forEach(x => parts.push(
+      `<div class="row bad"><span class="k">${esc(x.kind)}</span>${esc(x.section)} — ${esc(x.message)}</div>`
+    ));
+  } else if (payload.checked_sections) {
+    parts.push(`<div class="row good"><span class="ok-title">✓ 结构校验通过</span>（${payload.checked_sections} 个章节）</div>`);
+  }
+
+  const rules = payload.rules || [];
+  const bad = rules.filter(r => r.verdict === 'fail');
+  const skipped = rules.filter(r => r.verdict === 'skip');
+  if (rules.length) {
+    parts.push(`<div class="row good" style="background:none;border:none;padding:8px 2px 2px"><b>内容规则</b> ${bad.length ? `<span style="color:var(--err)">${bad.length} 失败</span>` : '<span style="color:var(--ok)">全部通过</span>'}${skipped.length ? ` · ${skipped.length} 跳过` : ''}</div>`);
+    rules.forEach(r => {
+      const cls = r.verdict === 'fail' ? 'bad' : r.verdict === 'skip' ? 'skip' : 'good';
+      const mark = r.verdict === 'fail' ? '✗' : r.verdict === 'skip' ? '·' : '✓';
+      parts.push(`<div class="row ${cls}"><span class="k">${esc(r.id)}</span>${mark} ${esc(r.name)}${r.detail ? ' — ' + esc(r.detail) : (r.message && r.verdict !== 'pass' ? ' — ' + esc(r.message) : '')}</div>`);
+    });
+  }
+
+  box.innerHTML = parts.join('') || '<div class="none">无结果</div>';
+}
+
+async function validateDeliverable() {
+  if (!S.editing) return;
+  await saveDeliverableSilent();
+  try {
+    const r = await api(`/api/projects/${encodeURIComponent(S.name)}/validate/${encodeURIComponent(S.editing)}`, {
+      method: 'POST', body: { run_rules: true },
+    });
+    renderReport(r);
+    toast(r.ok ? '校验通过' : '校验未通过，见下方明细', r.ok ? 'ok' : 'err', 3000);
+  } catch (e) { fail(e); }
+}
+
+async function saveDeliverableSilent() {
+  if (!S.editing) return;
+  try {
+    await api(`/api/projects/${encodeURIComponent(S.name)}/deliverables/${encodeURIComponent(S.editing)}`, {
+      method: 'PUT', body: { content: $('edContent').value },
+    });
+  } catch (e) { fail(e); throw e; }
+}
+
+async function submitDeliverable() {
+  if (!S.editing) return;
+  try {
+    await saveDeliverableSilent();
+    const r = await api(`/api/projects/${encodeURIComponent(S.name)}/submit`, {
+      method: 'POST', body: { deliverable: S.editing },
+    });
+    if (!r.ok) {
+      renderReport(r.validation || {});
+      toast('校验未通过，请先修正', 'err', 3600);
+      return;
+    }
+    toast(`已提交 ${r.deliverable} v${r.version}，进入关卡评审`, 'ok', 3200);
+    closeEditor();
+    await loadDetail();
+    await loadProjects();
+  } catch (e) { fail(e); }
+}
+
+// ============================================================
+// 动作：关卡
+// ============================================================
+function openGate() {
+  S.gateStage = S.detail?.current_stage || null;
+  $('gateTitle').textContent = S.detail?.current_sop?.gate_title || '关卡评审';
+  $('gateComment').value = '';
+  $('gateReport').innerHTML = '';
+  $('gateOverlay').hidden = false;
+  $('gateComment').focus();
+}
+
+function closeGate() {
+  $('gateOverlay').hidden = true;
+  S.gateStage = null;
+}
+
+async function doGate(action) {
+  const comment = $('gateComment').value.trim();
+  if (action !== 'approve' && !comment) {
+    toast('调整/打回必须写意见', 'warn');
+    $('gateComment').focus();
+    return;
+  }
+  try {
+    const r = await api(`/api/projects/${encodeURIComponent(S.name)}/gate`, {
+      method: 'POST',
+      body: { stage: S.gateStage, action, comment },
+    });
+    closeGate();
+
+    if (r.done) {
+      toast('🎉 项目全部阶段已完成', 'ok', 4000);
+    } else if (action === 'approve') {
+      toast(`已通过，下一阶段：${r.next_stage || '-'}`, 'ok', 3200);
+    } else if (action === 'revise') {
+      toast(`已退回调整，版本 v${r.version}；请重跑本阶段`, 'ok', 3400);
+    } else {
+      toast(`已打回，${r.staled.length} 个下游交付物标记过期`, 'ok', 4000);
+    }
+
+    if (r.staled && r.staled.length) {
+      $('gateReport').innerHTML = r.staled.map(s =>
+        `<div class="row bad"><span class="k">stale</span>${esc(s)}</div>`).join('');
+    }
+
+    await loadDetail();
+    await loadProjects();
+  } catch (e) { fail(e); }
+}
+
+// ============================================================
+// 动作：新建项目
+// ============================================================
+function openNewProject() {
+  $('npName').value = '';
+  $('npFlow').value = 'new_project';
+  $('npTarget').value = '';
+  $('npTargetField').hidden = true;
+  $('newOverlay').hidden = false;
+  $('npName').focus();
+}
+
+function closeNewProject() { $('newOverlay').hidden = true; }
+
+function toggleTarget() {
+  $('npTargetField').hidden = $('npFlow').value !== 'new_requirement';
+}
+
+async function createProject() {
+  const codename = $('npName').value.trim();
+  if (!codename) { toast('请填写项目代号', 'warn'); return; }
+  try {
+    const r = await api('/api/projects', {
+      method: 'POST',
+      body: {
+        codename,
+        flow: $('npFlow').value,
+        target_project: $('npTarget').value.trim() || null,
+      },
+    });
+    closeNewProject();
+    toast(`已创建 ${r.codename}（${r.stages} 阶段 / ${r.deliverables} 交付物）`, 'ok', 3200);
+    await loadProjects();
+    await selectProject(r.codename);
+  } catch (e) { fail(e); }
+}
+
+// ============================================================
+// 键盘与启动
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (!$('editorOverlay').hidden) return closeEditor();
+    if (!$('gateOverlay').hidden) return closeGate();
+    if (!$('newOverlay').hidden) return closeNewProject();
+  }
+  // Ctrl/Cmd+S 保存
+  if ((e.metaKey || e.ctrlKey) && e.key === 's' && !$('editorOverlay').hidden) {
+    e.preventDefault();
+    saveDeliverable();
+  }
+});
+
+(async function init() {
+  await loadProjects();
+  // 自动选中第一个项目，减少一次点击
+  if (S.projects.length && !S.name) {
+    await selectProject(S.projects[0].codename);
+  }
+})();
+</script>
+</body>
+</html>
